@@ -6,55 +6,66 @@ import sys
 
 import pygame
 
+from anewworld.config import GameConfig
 from anewworld.world.tile.tilemap import TileMap
 from anewworld.world.tile.tiletype import TileType
 
-pygame.init()
 
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
-TILE_SIZE = 16
+def main() -> None:
+    """
+    Entry point into anewworld.
+    """
+    pygame.init()
 
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("A New World")
+    cfg = GameConfig()
 
-clock = pygame.time.Clock()
-FPS = 60
+    screen = pygame.display.set_mode((cfg.screen_width, cfg.screen_height))
+    pygame.display.set_caption("A New World")
 
-map_w = SCREEN_WIDTH // TILE_SIZE
-map_h = SCREEN_HEIGHT // TILE_SIZE
+    clock = pygame.time.Clock()
 
-tilemap = TileMap.new(map_w, map_h, TileType.LAND)
+    map_w = cfg.screen_width // cfg.tile_size
+    map_h = cfg.screen_height // cfg.tile_size
 
-# quick test: make a horizontal "river" stripe
-for x in range(map_w):
-    tilemap.tile_at(x, map_h // 2).terrain = TileType.RIVER
+    tilemap = TileMap.new(map_w, map_h, TileType.LAND)
 
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+    for x in range(map_w):
+        tilemap.tile_at(x, map_h // 2).terrain = TileType.RIVER
 
-    screen.fill((0, 0, 0))
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
 
-    for y in range(tilemap.h):
-        for x in range(tilemap.w):
-            t = tilemap.tile_at(x, y).terrain
+        screen.fill((0, 0, 0))
 
-            if t == TileType.LAND:
-                color = (70, 150, 80)
-            else:
-                color = (50, 110, 190)
+        for y in range(tilemap.h):
+            for x in range(tilemap.w):
+                t = tilemap.tile_at(x, y).terrain
 
-            pygame.draw.rect(
-                screen,
-                color,
-                (x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE),
-            )
+                if t == TileType.LAND:
+                    color = (70, 150, 80)
+                else:
+                    color = (50, 110, 190)
 
-    pygame.display.flip()
-    clock.tick(FPS)
+                pygame.draw.rect(
+                    screen,
+                    color,
+                    (
+                        x * cfg.tile_size,
+                        y * cfg.tile_size,
+                        cfg.tile_size,
+                        cfg.tile_size,
+                    ),
+                )
 
-pygame.quit()
-sys.exit()
+        pygame.display.flip()
+        clock.tick(cfg.fps)
+
+    pygame.quit()
+    sys.exit()
+
+
+if __name__ == "__main__":
+    main()
