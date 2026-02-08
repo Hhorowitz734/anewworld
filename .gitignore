@@ -1,0 +1,18 @@
+# Virtual environments
+venvworld/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Mypy cache
+.mypy_cache/
+
+# Ruff cache
+.ruff_cache/
+
+# Pytest cache
+.pytest_cache/
+
+# OS junk
+.DS_Store
