@@ -4,17 +4,16 @@ Tile map and chunk dataclasses.
 
 from __future__ import annotations
 
-import random
 from dataclasses import dataclass
 
-from .tile import Tile
+from .generator import TerrainGenerator
 from .tiletype import TileType
 
 
 @dataclass(slots=True)
 class _Chunk:
     """
-    Internal storage unit for a fixed-size square region of tiles.
+    Internal storage unit for a fixed-size square region of terrain.
     """
 
     size: int
@@ -22,34 +21,11 @@ class _Chunk:
     Width and height of the chunk in tiles.
     """
 
-    tiles: list[Tile]
+    terrain: list[TileType]
     """
-    Flat list of tiles stored in row-major order.
+    Flat list of terrain values stored in row-major order.
     Length is size * size.
     """
-
-    @classmethod
-    def filled(cls, *, size: int, default_terrain: TileType) -> _Chunk:
-        """
-        Create a chunk completely filled with a single terrain type.
-
-        Parameters
-        ----------
-        size : int
-            Width and height of the chunk in tiles.
-        default_terrain : TileType
-            Terrain type assigned to all tiles in the chunk.
-
-        Returns
-        -------
-        _Chunk
-            A newly created chunk filled with default tiles.
-        """
-        ttype = random.choice(list(TileType))
-        return cls(
-            size=size,
-            tiles=[Tile(ttype) for _ in range(size * size)],
-        )
 
     def _idx(self, x: int, y: int) -> int:
         """
@@ -65,13 +41,13 @@ class _Chunk:
         Returns
         -------
         int
-            Index into the flat tile list.
+            Index into the flat terrain list.
         """
         return y * self.size + x
 
-    def tile_at(self, x: int, y: int) -> Tile:
+    def terrain_at(self, x: int, y: int) -> TileType:
         """
-        Retrieve the tile at local chunk coordinates.
+        Retrieve the terrain at local chunk coordinates.
 
         Parameters
         ----------
@@ -82,19 +58,19 @@ class _Chunk:
 
         Returns
         -------
-        Tile
-            The tile at the given local position.
+        TileType
+            Terrain type at the given local position.
         """
-        return self.tiles[self._idx(x, y)]
+        return self.terrain[self._idx(x, y)]
 
 
 @dataclass(slots=True)
 class TileMap:
     """
-    Infinite tile map backed by lazily-created fixed-size chunks.
+    Infinite tile map backed by lazily-generated fixed-size chunks.
 
-    The tile map supports unbounded integer coordinates. Tiles are
-    created on demand and default to a specified terrain type.
+    The tile map supports unbounded integer coordinates. Chunks are
+    generated on demand using a seeded terrain generator.
     """
 
     chunk_size: int
@@ -102,18 +78,18 @@ class TileMap:
     Width and height of each chunk in tiles.
     """
 
-    default_terrain: TileType
+    generator: TerrainGenerator
     """
-    Terrain type assigned to all tiles in newly created chunks.
+    Seeded terrain generator used to produce base terrain.
     """
 
     _chunks: dict[tuple[int, int], _Chunk]
     """
-    Mapping from chunk coordinates (cx, cy) to chunk instances.
+    Mapping from chunk coordinates (cx, cy) to generated chunks.
     """
 
     @classmethod
-    def new(cls, *, chunk_size: int, default_terrain: TileType) -> TileMap:
+    def new(cls, *, chunk_size: int, generator: TerrainGenerator) -> TileMap:
         """
         Construct a new infinite tile map.
 
@@ -121,8 +97,8 @@ class TileMap:
         ----------
         chunk_size : int
             Width and height of each chunk in tiles.
-        default_terrain : TileType
-            Terrain type used for all tiles until explicitly changed.
+        generator : TerrainGenerator
+            Seeded generator used to produce terrain.
 
         Returns
         -------
@@ -131,7 +107,7 @@ class TileMap:
         """
         return cls(
             chunk_size=chunk_size,
-            default_terrain=default_terrain,
+            generator=generator,
             _chunks={},
         )
 
@@ -142,9 +118,9 @@ class TileMap:
         Parameters
         ----------
         x : int
-            World-space X coordinate.
+            World-space X coordinate in tiles.
         y : int
-            World-space Y coordinate.
+            World-space Y coordinate in tiles.
 
         Returns
         -------
@@ -160,7 +136,7 @@ class TileMap:
 
     def _get_chunk(self, cx: int, cy: int) -> _Chunk:
         """
-        Retrieve a chunk by chunk coordinates, creating it if missing.
+        Retrieve a chunk by chunk coordinates, generating it if missing.
 
         Parameters
         ----------
@@ -177,31 +153,14 @@ class TileMap:
         key = (cx, cy)
         chunk = self._chunks.get(key)
         if chunk is None:
-            chunk = _Chunk.filled(
-                size=self.chunk_size,
-                default_terrain=self.default_terrain,
+            terrain = self.generator.generate_chunk(
+                cx=cx,
+                cy=cy,
+                chunk_size=self.chunk_size,
             )
+            chunk = _Chunk(size=self.chunk_size, terrain=terrain)
             self._chunks[key] = chunk
         return chunk
-
-    def tile_at(self, x: int, y: int) -> Tile:
-        """
-        Retrieve the tile at world coordinates.
-
-        Parameters
-        ----------
-        x : int
-            World-space X coordinate.
-        y : int
-            World-space Y coordinate.
-
-        Returns
-        -------
-        Tile
-            The tile at the given world position.
-        """
-        cx, cy, lx, ly = self._split_coords(x, y)
-        return self._get_chunk(cx, cy).tile_at(lx, ly)
 
     def terrain_at(self, x: int, y: int) -> TileType:
         """
@@ -210,31 +169,17 @@ class TileMap:
         Parameters
         ----------
         x : int
-            World-space X coordinate.
+            World-space X coordinate in tiles.
         y : int
-            World-space Y coordinate.
+            World-space Y coordinate in tiles.
 
         Returns
         -------
         TileType
-            Terrain type of the tile.
+            Terrain type at the given world position.
         """
-        return self.tile_at(x, y).terrain
-
-    def set_terrain(self, x: int, y: int, terrain: TileType) -> None:
-        """
-        Set the terrain type at world coordinates.
-
-        Parameters
-        ----------
-        x : int
-            World-space X coordinate.
-        y : int
-            World-space Y coordinate.
-        terrain : TileType
-            New terrain type for the tile.
-        """
-        self.tile_at(x, y).terrain = terrain
+        cx, cy, lx, ly = self._split_coords(x, y)
+        return self._get_chunk(cx, cy).terrain_at(lx, ly)
 
     def chunk_count(self) -> int:
         """
@@ -246,3 +191,4 @@ class TileMap:
             Number of chunks stored in the tile map.
         """
         return len(self._chunks)
+
