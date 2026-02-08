@@ -8,37 +8,32 @@ from dataclasses import dataclass
 @dataclass(frozen=True, slots=True)
 class GameConfig:
     """
-    Game settings.
+    Global configuration settings for the game.
     """
 
     screen_width: int = 800
     """
-    Screen width of game.
+    Width of the game window in pixels.
     """
 
     screen_height: int = 600
     """
-    Screen height of game.
+    Height of the game window in pixels.
     """
 
     fps: int = 60
     """
-    Frames per second.
+    Target frames per second for the main loop.
     """
 
     tile_size: int = 10
     """
-    Size of tile.
+    Size of a single tile in pixels.
     """
 
-    map_width: int = 50
+    chunk_size: int = 32
     """
-    Map width (tiles).
-    """
-
-    map_height: int = 40
-    """
-    Map height (tiles).
+    Width and height of a tile chunk, in tiles.
     """
 
     debug: bool = True
