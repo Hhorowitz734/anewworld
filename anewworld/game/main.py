@@ -7,6 +7,7 @@ import sys
 import pygame
 
 from anewworld.config import GameConfig
+from anewworld.game.controls import Controls
 from anewworld.render.camera import Camera
 from anewworld.render.chunk_renderer import ChunkRenderer
 from anewworld.render.palette import TerrainPalette
@@ -41,6 +42,7 @@ def main() -> None:
     )
 
     camera = Camera()
+    controls = Controls(camera=camera, pan_button=1)
 
     running = True
     while running:
@@ -49,17 +51,9 @@ def main() -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+                continue
 
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                mx, my = event.pos
-                camera.begin_drag(mouse_x=mx, mouse_y=my)
-
-            if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                camera.end_drag()
-
-            if event.type == pygame.MOUSEMOTION:
-                mx, my = event.pos
-                camera.drag_to(mouse_x=mx, mouse_y=my)
+            controls.handle_event(event)
 
         screen.fill((0, 0, 0))
         renderer.draw(screen=screen, tilemap=tilemap, camera=camera)
