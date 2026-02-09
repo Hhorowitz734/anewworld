@@ -13,6 +13,7 @@ from anewworld.render.chunk_renderer import ChunkRenderer
 from anewworld.render.palette import TerrainPalette
 from anewworld.world.tile.tilemap import TileMap
 from anewworld.world.tile.tiletype import TileType
+from anewworld.world.tile.generator import TerrainGenerator
 
 
 def main() -> None:
@@ -28,9 +29,11 @@ def main() -> None:
 
     clock = pygame.time.Clock()
 
+    generator = TerrainGenerator(seed = cfg.world_seed)
+
     tilemap = TileMap.new(
-        chunk_size=cfg.chunk_size,
-        default_terrain=TileType.LAND,
+        chunk_size = cfg.chunk_size,
+        generator = generator
     )
 
     renderer = ChunkRenderer.new(
