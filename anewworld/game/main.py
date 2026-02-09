@@ -7,6 +7,7 @@ import sys
 import pygame
 
 from anewworld.config import GameConfig
+from anewworld.render.camera import Camera
 from anewworld.render.chunk_renderer import ChunkRenderer
 from anewworld.render.palette import TerrainPalette
 from anewworld.world.tile.tilemap import TileMap
@@ -39,14 +40,7 @@ def main() -> None:
         palette=TerrainPalette(),
     )
 
-    cam_px_x = 0
-    cam_px_y = 0
-
-    dragging = False
-    drag_start_mouse_x = 0
-    drag_start_mouse_y = 0
-    drag_start_cam_px_x = 0
-    drag_start_cam_px_y = 0
+    camera = Camera()
 
     running = True
     while running:
@@ -57,28 +51,18 @@ def main() -> None:
                 running = False
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                dragging = True
-                drag_start_mouse_x, drag_start_mouse_y = event.pos
-                drag_start_cam_px_x = cam_px_x
-                drag_start_cam_px_y = cam_px_y
+                mx, my = event.pos
+                camera.begin_drag(mouse_x=mx, mouse_y=my)
 
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                dragging = False
+                camera.end_drag()
 
-            if event.type == pygame.MOUSEMOTION and dragging:
+            if event.type == pygame.MOUSEMOTION:
                 mx, my = event.pos
-                dx_px = mx - drag_start_mouse_x
-                dy_px = my - drag_start_mouse_y
-                cam_px_x = drag_start_cam_px_x - dx_px
-                cam_px_y = drag_start_cam_px_y - dy_px
+                camera.drag_to(mouse_x=mx, mouse_y=my)
 
         screen.fill((0, 0, 0))
-        renderer.draw(
-            screen=screen,
-            tilemap=tilemap,
-            cam_px_x=cam_px_x,
-            cam_px_y=cam_px_y,
-        )
+        renderer.draw(screen=screen, tilemap=tilemap, camera=camera)
         pygame.display.flip()
 
     pygame.quit()
