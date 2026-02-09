@@ -11,12 +11,12 @@ class GameConfig:
     Global configuration settings for the game.
     """
 
-    screen_width: int = 800
+    screen_width: int = 1000
     """
     Width of the game window in pixels.
     """
 
-    screen_height: int = 600
+    screen_height: int = 800
     """
     Height of the game window in pixels.
     """
@@ -26,7 +26,7 @@ class GameConfig:
     Target frames per second for the main loop.
     """
 
-    tile_size: int = 10
+    tile_size: int = 5
     """
     Size of a single tile in pixels.
     """

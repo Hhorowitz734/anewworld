@@ -7,6 +7,8 @@ import sys
 import pygame
 
 from anewworld.config import GameConfig
+from anewworld.render.chunk_renderer import ChunkRenderer
+from anewworld.render.palette import TerrainPalette
 from anewworld.world.tile.tilemap import TileMap
 from anewworld.world.tile.tiletype import TileType
 
@@ -24,22 +26,27 @@ def main() -> None:
 
     clock = pygame.time.Clock()
 
-    tiles_w = cfg.screen_width // cfg.tile_size
-    tiles_h = cfg.screen_height // cfg.tile_size
-
     tilemap = TileMap.new(
         chunk_size=cfg.chunk_size,
         default_terrain=TileType.LAND,
     )
 
-    cam_x = 0
-    cam_y = 0
+    renderer = ChunkRenderer.new(
+        tile_size=cfg.tile_size,
+        chunk_size=cfg.chunk_size,
+        max_cached_chunks=256,
+        padding_chunks=1,
+        palette=TerrainPalette(),
+    )
+
+    cam_px_x = 0
+    cam_px_y = 0
 
     dragging = False
     drag_start_mouse_x = 0
     drag_start_mouse_y = 0
-    drag_start_cam_x = 0
-    drag_start_cam_y = 0
+    drag_start_cam_px_x = 0
+    drag_start_cam_px_y = 0
 
     running = True
     while running:
@@ -52,8 +59,8 @@ def main() -> None:
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 dragging = True
                 drag_start_mouse_x, drag_start_mouse_y = event.pos
-                drag_start_cam_x = cam_x
-                drag_start_cam_y = cam_y
+                drag_start_cam_px_x = cam_px_x
+                drag_start_cam_px_y = cam_px_y
 
             if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 dragging = False
@@ -62,37 +69,16 @@ def main() -> None:
                 mx, my = event.pos
                 dx_px = mx - drag_start_mouse_x
                 dy_px = my - drag_start_mouse_y
-
-                dx_tiles = dx_px // cfg.tile_size
-                dy_tiles = dy_px // cfg.tile_size
-
-                cam_x = drag_start_cam_x - int(dx_tiles)
-                cam_y = drag_start_cam_y - int(dy_tiles)
+                cam_px_x = drag_start_cam_px_x - dx_px
+                cam_px_y = drag_start_cam_px_y - dy_px
 
         screen.fill((0, 0, 0))
-
-        for sy in range(tiles_h):
-            wy = cam_y + sy
-            for sx in range(tiles_w):
-                wx = cam_x + sx
-                t = tilemap.terrain_at(wx, wy)
-
-                if t == TileType.LAND:
-                    color = (70, 150, 80)
-                else:
-                    color = (50, 110, 190)
-
-                pygame.draw.rect(
-                    screen,
-                    color,
-                    (
-                        sx * cfg.tile_size,
-                        sy * cfg.tile_size,
-                        cfg.tile_size,
-                        cfg.tile_size,
-                    ),
-                )
-
+        renderer.draw(
+            screen=screen,
+            tilemap=tilemap,
+            cam_px_x=cam_px_x,
+            cam_px_y=cam_px_y,
+        )
         pygame.display.flip()
 
     pygame.quit()

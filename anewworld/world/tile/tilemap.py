@@ -45,9 +45,10 @@ class _Chunk:
         _Chunk
             A newly created chunk filled with default tiles.
         """
+        ttype = random.choice(list(TileType))
         return cls(
             size=size,
-            tiles=[Tile(random.choice(list(TileType))) for _ in range(size * size)],
+            tiles=[Tile(ttype) for _ in range(size * size)],
         )
 
     def _idx(self, x: int, y: int) -> int:
