@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 import pygame
 
+from anewworld.render.camera import Camera
 from anewworld.render.palette import TerrainPalette
 from anewworld.world.tile.tilemap import TileMap
 
@@ -115,8 +116,7 @@ class ChunkRenderer:
         *,
         screen: pygame.Surface,
         tilemap: TileMap,
-        cam_px_x: int,
-        cam_px_y: int,
+        camera: Camera,
     ) -> None:
         """
         Draw visible chunks to the screen.
@@ -127,20 +127,18 @@ class ChunkRenderer:
             Destination surface for rendering.
         tilemap : TileMap
             Tile map to render.
-        cam_px_x : int
-            Camera top-left X coordinate in world pixels.
-        cam_px_y : int
-            Camera top-left Y coordinate in world pixels.
+        camera : Camera
+            Camera describing visible region in world px.
         """
         screen_w = screen.get_width()
         screen_h = screen.get_height()
 
         chunk_px = self.chunk_size * self.tile_size
 
-        left = cam_px_x
-        top = cam_px_y
-        right = cam_px_x + screen_w - 1
-        bottom = cam_px_y + screen_h - 1
+        left, top, right, bottom = camera.viewport_px(
+            screen_width=screen_w,
+            screen_height=screen_h,
+        )
 
         cx0 = self._floor_div(left, chunk_px) - self.padding_chunks
         cy0 = self._floor_div(top, chunk_px) - self.padding_chunks
@@ -150,8 +148,8 @@ class ChunkRenderer:
         for cy in range(cy0, cy1 + 1):
             for cx in range(cx0, cx1 + 1):
                 surf = self._get_chunk_surface(tilemap=tilemap, cx=cx, cy=cy)
-                dest_x = cx * chunk_px - cam_px_x
-                dest_y = cy * chunk_px - cam_px_y
+                dest_x = cx * chunk_px - camera.x_px
+                dest_y = cy * chunk_px - camera.y_px
                 screen.blit(surf, (dest_x, dest_y))
 
         self._evict_if_needed()
