@@ -11,4 +11,4 @@ class TileType(IntEnum):
     """
 
     LAND = 1
-    RIVER = 2
+    WATER = 2

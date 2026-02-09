@@ -18,9 +18,9 @@ class TerrainPalette:
     RGB color for land tiles.
     """
 
-    river: tuple[int, int, int] = (50, 110, 190)
+    water: tuple[int, int, int] = (50, 110, 190)
     """
-    RGB color for river tiles.
+    RGB color for water tiles.
     """
 
     unknown: tuple[int, int, int] = (200, 50, 200)
@@ -44,6 +44,6 @@ class TerrainPalette:
         """
         if terrain == TileType.LAND:
             return self.land
-        if terrain == TileType.RIVER:
-            return self.river
+        if terrain == TileType.WATER:
+            return self.water
         return self.unknown
