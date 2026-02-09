@@ -40,3 +40,8 @@ class GameConfig:
     """
     Developer debug flag.
     """
+
+    world_seed: int = 0
+    """
+    Seed for procedural world generation.
+    """
