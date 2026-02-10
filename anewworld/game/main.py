@@ -40,7 +40,7 @@ def main() -> None:
         tile_size=cfg.tile_size,
         chunk_size=cfg.chunk_size,
         max_cached_chunks=256,
-        padding_chunks=1,
+        padding_chunks=3,
         palette=TerrainPalette(),
     )
 
