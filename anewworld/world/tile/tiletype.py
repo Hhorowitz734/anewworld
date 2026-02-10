@@ -12,3 +12,6 @@ class TileType(IntEnum):
 
     LAND = 1
     WATER = 2
+
+    RAINFOREST = 3
+    DEEPWATER = 4

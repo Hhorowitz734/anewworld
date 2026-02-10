@@ -29,6 +29,16 @@ class TerrainPalette:
     RGB color for water tiles.
     """
 
+    rainforest: tuple[int, int, int] = (10, 48, 10)
+    """
+    RGB color for rainforest.
+    """
+
+    deepwater: tuple[int, int, int] = (10, 70, 130)
+    """
+    RGB color for deep water.
+    """
+
     unknown: tuple[int, int, int] = (200, 50, 200)
     """
     RGB color for unknown tiles.
@@ -72,6 +82,10 @@ class TerrainPalette:
             return self.land
         if terrain == TileType.WATER:
             return self.water
+        if terrain == TileType.RAINFOREST:
+            return self.rainforest
+        if terrain == TileType.DEEPWATER:
+            return self.deepwater
         return self.unknown
 
     @staticmethod
