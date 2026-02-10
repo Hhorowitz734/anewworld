@@ -14,6 +14,8 @@ from anewworld.render.palette import TerrainPalette
 from anewworld.world.tile.tilemap import TileMap
 from anewworld.world.tile.tiletype import TileType
 from anewworld.world.tile.generator import TerrainGenerator
+from anewworld.player.player import Player
+from anewworld.player.inventory import Inventory
 
 
 def main() -> None:
@@ -46,6 +48,15 @@ def main() -> None:
 
     camera = Camera()
     controls = Controls(camera=camera, pan_button=1)
+
+    inventory = Inventory.with_houses(count = 1)
+
+    player = Player(
+        player_id = 1,
+        x_px = 0.0,
+        y_px = 0.0,
+        inventory = inventory
+    )
 
     running = True
     while running:
