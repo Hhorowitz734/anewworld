@@ -40,7 +40,7 @@ def main() -> None:
         tile_size=cfg.tile_size,
         chunk_size=cfg.chunk_size,
         max_cached_chunks=256,
-        padding_chunks=1,
+        padding_chunks=3,
         palette=TerrainPalette(),
     )
 
@@ -52,6 +52,10 @@ def main() -> None:
         clock.tick(cfg.fps)
 
         for event in pygame.event.get():
+    
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                running = False
+                continue
             if event.type == pygame.QUIT:
                 running = False
                 continue
