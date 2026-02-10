@@ -52,6 +52,10 @@ def main() -> None:
         clock.tick(cfg.fps)
 
         for event in pygame.event.get():
+    
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                running = False
+                continue
             if event.type == pygame.QUIT:
                 running = False
                 continue

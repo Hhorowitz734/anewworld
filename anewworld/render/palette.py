@@ -2,7 +2,11 @@
 Palette mappings used by the renderer.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+
+import pygame
 
 from anewworld.world.tile.tiletype import TileType
 
@@ -10,7 +14,9 @@ from anewworld.world.tile.tiletype import TileType
 @dataclass(frozen=True, slots=True)
 class TerrainPalette:
     """
-    Color palette for terrain rendering.
+    Surface palette for terrain rendering.
+
+    Surfaces are created lazily and cached by (tile_size, terrain).
     """
 
     land: tuple[int, int, int] = (70, 150, 80)
@@ -28,22 +34,57 @@ class TerrainPalette:
     RGB color for unknown tiles.
     """
 
-    def color_for(self, terrain: TileType) -> tuple[int, int, int]:
+    def surface_for(self, terrain: TileType, *, tile_size: int) -> pygame.Surface:
         """
-        Map a terrain type to an RGB color.
+        Map a terrain type to a pre-colored tile surface.
 
         Parameters
         ----------
         terrain : TileType
             Terrain type to map.
+        tile_size : int
+            Square tile size in pixels.
 
         Returns
         -------
-        tuple[int, int, int]
-            RGB color for the terrain.
+        pygame.Surface
+            A surface of size (tile_size, tile_size) filled with the
+            terrain's color, converted for fast blitting.
+        """
+        cache = self._surface_cache()
+        key = (tile_size, terrain)
+
+        surf = cache.get(key)
+        if surf is not None:
+            return surf
+
+        color = self._color_for(terrain)
+        surf = pygame.Surface((tile_size, tile_size)).convert()
+        surf.fill(color)
+        cache[key] = surf
+        return surf
+
+    def _color_for(self, terrain: TileType) -> tuple[int, int, int]:
+        """
+        Map a terrain type to an RGB color.
         """
         if terrain == TileType.LAND:
             return self.land
         if terrain == TileType.WATER:
             return self.water
         return self.unknown
+
+    @staticmethod
+    def _surface_cache() -> dict[tuple[int, TileType], pygame.Surface]:
+        """
+        Per-process surface cache shared across TerrainPalette instances.
+
+        The cache is keyed by (tile_size, terrain) and stores converted
+        surfaces for fast blitting.
+        """
+        cache = getattr(TerrainPalette._surface_cache, "_cache", None)
+        if cache is None:
+            cache = {}
+            setattr(TerrainPalette._surface_cache, "_cache", cache)
+        return cache
+

@@ -50,3 +50,5 @@ class Controls:
             mx, my = event.pos
             self.camera.drag_to(mouse_x=mx, mouse_y=my)
             return
+
+

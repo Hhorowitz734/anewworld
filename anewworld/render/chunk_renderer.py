@@ -5,6 +5,7 @@ Chunk-based renderer with surface caching.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections import OrderedDict
 
 import pygame
 
@@ -54,7 +55,7 @@ class ChunkRenderer:
 
     palette: TerrainPalette
     """
-    Palette mapping terrain types to RGB colors.
+    Palette mapping terrain types to tile surfaces.
     """
 
     _cache: dict[tuple[int, int], _CachedChunkSurface]
@@ -62,7 +63,7 @@ class ChunkRenderer:
     Cached surfaces keyed by chunk coordinates.
     """
 
-    _lru: dict[tuple[int, int], None]
+    _lru: OrderedDict[tuple[int, int], None]
     """
     LRU ordering for cached chunk keys.
     """
@@ -91,7 +92,7 @@ class ChunkRenderer:
         padding_chunks : int
             Number of extra chunks to render beyond the viewport.
         palette : TerrainPalette | None
-            Palette mapping terrain types to colors.
+            Palette mapping terrain types to surfaces.
 
         Returns
         -------
@@ -108,7 +109,7 @@ class ChunkRenderer:
             padding_chunks=padding_chunks,
             palette=palette,
             _cache={},
-            _lru={},
+            _lru=OrderedDict(),
         )
 
     def draw(
@@ -142,8 +143,8 @@ class ChunkRenderer:
 
         cx0 = self._floor_div(left, chunk_px) - self.padding_chunks
         cy0 = self._floor_div(top, chunk_px) - self.padding_chunks
-        cx1 = self._floor_div(right, chunk_px) + self.padding_chunks
-        cy1 = self._floor_div(bottom, chunk_px) + self.padding_chunks
+        cx1 = self._floor_div(right - 1, chunk_px) + self.padding_chunks
+        cy1 = self._floor_div(bottom - 1, chunk_px) + self.padding_chunks
 
         for cy in range(cy0, cy1 + 1):
             for cx in range(cx0, cx1 + 1):
@@ -204,27 +205,35 @@ class ChunkRenderer:
         pygame.Surface
             Newly created surface containing the chunk's pixels.
         """
-        chunk_px = self.chunk_size * self.tile_size
-        surface = pygame.Surface((chunk_px, chunk_px))
 
-        base_x = cx * self.chunk_size
-        base_y = cy * self.chunk_size
+        tile_size = self.tile_size
 
-        for ly in range(self.chunk_size):
+        chunk_size = self.chunk_size
+        chunk_px = chunk_size * tile_size
+
+        surface = pygame.Surface((chunk_px, chunk_px)).convert()
+
+        base_x = cx * chunk_size
+        base_y = cy * chunk_size
+
+        tile_for: dict[object, pygame.Surface] = {}
+
+        for ly in range(chunk_size):
             wy = base_y + ly
-            py = ly * self.tile_size
-            for lx in range(self.chunk_size):
+            py = ly * tile_size
+            for lx in range(chunk_size):
                 wx = base_x + lx
-                px = lx * self.tile_size
+                px = lx * tile_size
 
                 terrain = tilemap.terrain_at(wx, wy)
-                color = self.palette.color_for(terrain)
 
-                pygame.draw.rect(
-                    surface,
-                    color,
-                    (px, py, self.tile_size, self.tile_size),
-                )
+                tile = tile_for.get(terrain)
+                if tile is None:
+                    tile = self.palette.surface_for(terrain, tile_size=tile_size)
+                    tile_for[terrain] = tile
+
+                surface.blit(tile, (px, py))
+
 
         return surface
 
@@ -237,18 +246,16 @@ class ChunkRenderer:
         key : tuple[int, int]
             Chunk coordinate key.
         """
-        if key in self._lru:
-            del self._lru[key]
         self._lru[key] = None
+        self._lru.move_to_end(key, last=True)
 
     def _evict_if_needed(self) -> None:
         """
         Evict least recently used cached chunk surfaces if cache is full.
         """
         while len(self._cache) > self.max_cached_chunks:
-            oldest_key = next(iter(self._lru))
-            del self._lru[oldest_key]
-            del self._cache[oldest_key]
+            oldest_key, _ = self._lru.popitem(last=False)
+            self._cache.pop(oldest_key, None)
 
     @staticmethod
     def _floor_div(a: int, b: int) -> int:
@@ -268,3 +275,4 @@ class ChunkRenderer:
             Floor-divided result.
         """
         return a // b
+

@@ -21,12 +21,12 @@ class TerrainGenerator:
     World seed used to generate terrain deterministically.
     """
 
-    lake_chance: float = 0.28
+    lake_chance: float = 0.06
     """
     Probability that a chunk has at least one lake seed.
     """
 
-    min_lake_radius: int = 5
+    min_lake_radius: int = 3
     """
     Minimum lake radius in tiles.
     """
@@ -36,12 +36,12 @@ class TerrainGenerator:
     Maximum lake radius in tiles.
     """
 
-    river_chance: float = 0.38
+    river_chance: float = 0.10
     """
     Probability that a chunk contains a river segment.
     """
 
-    river_width: int = 1
+    river_width: int = 2
     """
     River half-width in tiles.
 
