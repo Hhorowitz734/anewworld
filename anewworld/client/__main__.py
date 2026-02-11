@@ -12,6 +12,7 @@ from anewworld.shared.level.level_grid import LevelGrid
 from anewworld.shared.level.elevation import ElevationLevel
 from anewworld.shared.level.moisture import MoistureLevel
 from anewworld.shared.tile_type import TileType
+from anewworld.shared.config import WorldConfig
 from anewworld.client.renderer.chunk_renderer import ChunkRenderer
 from anewworld.client.renderer.terrain_palette import TerrainPalette
 from anewworld.client.renderer.camera import Camera
@@ -24,6 +25,8 @@ def main() -> None:
     """
 
     pygame.init()
+
+    world_cfg = WorldConfig()
 
     screen = pygame.display.set_mode((800, 800))
     pygame.display.set_caption("A New World")
@@ -44,17 +47,18 @@ def main() -> None:
         default=TileType.DEFAULT_GRASS,
     )
 
-    generator = TerrainGenerator(seed = 0, land_grid = land_grid)
+    generator = TerrainGenerator(seed = world_cfg.world_seed, 
+                                 land_grid = land_grid)
 
     world_map = WorldMap.new(
-        chunk_size = 32,
+        chunk_size = world_cfg.chunk_size,
         generator = generator,
         max_cached_chunks = 256
     )
 
     renderer = ChunkRenderer.new(
         tile_size = 10,
-        chunk_size = 32,
+        chunk_size = world_cfg.chunk_size,
         max_cached_chunks = 256,
         padding_chunks = 3,
         palette = TerrainPalette()
