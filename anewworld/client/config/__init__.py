@@ -30,3 +30,15 @@ class WindowConfig:
     """
     Frames per second.
     """
+
+
+@dataclass(frozen=True, slots=True)
+class ClientConfig:
+    """
+    Configuration of client connection.
+    """
+
+    singleplayer: bool = False
+    """
+    Decides whether to connect to server.
+    """

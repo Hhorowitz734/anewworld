@@ -2,15 +2,19 @@
 Client-side logic for anewworld.
 """
 
+from __future__ import annotations
+
 import sys
+import asyncio
 
 import pygame
 
-from anewworld.client.config import WindowConfig
+from anewworld.client.config import WindowConfig, ClientConfig
 from anewworld.client.controls import Controls
 from anewworld.client.renderer.camera import Camera
 from anewworld.client.renderer.chunk_renderer import ChunkRenderer
 from anewworld.client.renderer.terrain_palette import TerrainPalette
+from anewworld.client.net.client import ServerConnection
 from anewworld.shared.config import WorldConfig
 from anewworld.shared.terrain_generator import TerrainGenerator
 from anewworld.shared.world_map import WorldMap
@@ -24,49 +28,73 @@ def main() -> None:
 
     world_cfg = WorldConfig()
     window_cfg = WindowConfig()
+    client_cfg = ClientConfig()
 
-    screen = pygame.display.set_mode(
-        (window_cfg.screen_width, window_cfg.screen_height)
-    )
-    pygame.display.set_caption("A New World")
+    conn: ServerConnection | None = None
+    if not client_cfg.singleplayer:
+        conn = asyncio.run(
+            ServerConnection.connect(
+                host="127.0.0.1",
+                port=7777,
+            )
+        )
+        print(f"Connected as {conn.player_id}")
 
-    clock = pygame.time.Clock()
+    try:
+        screen = pygame.display.set_mode(
+            (window_cfg.screen_width, window_cfg.screen_height)
+        )
+        pygame.display.set_caption("A New World")
 
-    land_grid = world_cfg.level_grid
-    generator = TerrainGenerator(seed=world_cfg.world_seed, land_grid=land_grid)
+        clock = pygame.time.Clock()
 
-    world_map = WorldMap.new(
-        chunk_size=world_cfg.chunk_size, generator=generator, max_cached_chunks=256
-    )
+        land_grid = world_cfg.level_grid
+        generator = TerrainGenerator(seed=world_cfg.world_seed, land_grid=land_grid)
 
-    renderer = ChunkRenderer.new(
-        tile_size=window_cfg.tile_size,
-        chunk_size=world_cfg.chunk_size,
-        max_cached_chunks=256,
-        padding_chunks=3,
-        palette=TerrainPalette(),
-    )
+        world_map = WorldMap.new(
+            chunk_size=world_cfg.chunk_size,
+            generator=generator,
+            max_cached_chunks=256,
+        )
 
-    camera = Camera()
-    controls = Controls(camera=camera, pan_button=1)
+        renderer = ChunkRenderer.new(
+            tile_size=window_cfg.tile_size,
+            chunk_size=world_cfg.chunk_size,
+            max_cached_chunks=256,
+            padding_chunks=3,
+            palette=TerrainPalette(),
+        )
 
-    running = True
-    while running:
-        clock.tick(window_cfg.fps)
+        camera = Camera()
+        controls = Controls(camera=camera, pan_button=1)
 
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                running = False
-                continue
-            controls.handle_event(event)
+        running = True
+        while running:
+            clock.tick(window_cfg.fps)
 
-        screen.fill((0, 0, 0))
-        renderer.draw(screen=screen, world_map=world_map, camera=camera)
-        pygame.display.flip()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    continue
 
-    pygame.quit()
-    sys.exit()
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                    running = False
+                    continue
+
+                controls.handle_event(event)
+
+            screen.fill((0, 0, 0))
+            renderer.draw(screen=screen, world_map=world_map, camera=camera)
+            pygame.display.flip()
+
+    finally:
+        if conn is not None:
+            asyncio.run(conn.close())
+
+        pygame.quit()
+        sys.exit()
 
 
 if __name__ == "__main__":
     main()
+
