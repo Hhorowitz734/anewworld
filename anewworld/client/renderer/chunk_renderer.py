@@ -4,16 +4,16 @@ Chunk-based renderer with surface caching.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections import deque
-from typing import Deque, Set
+from dataclasses import dataclass
 
 import pygame
 
+from anewworld.shared.utils.lru_cache import LRUCache
+from anewworld.shared.world_map import WorldMap
+
 from .camera import Camera
 from .terrain_palette import TerrainPalette
-from anewworld.shared.world_map import WorldMap
-from anewworld.shared.utils.lru_cache import LRUCache
 
 
 @dataclass(slots=True)
@@ -70,12 +70,12 @@ class ChunkRenderer:
     Cached surfaces keyed by chunk coordinates.
     """
 
-    _build_queue: Deque[tuple[int, int]]
+    _build_queue: deque[tuple[int, int]]
     """
     Queue of chunk keys awaiting surface construction.
     """
 
-    _build_set: Set[tuple[int, int]]
+    _build_set: set[tuple[int, int]]
     """
     Set of queued chunk keys to avoid duplicates.
     """
@@ -126,7 +126,9 @@ class ChunkRenderer:
         placeholder = pygame.Surface((placeholder_px, placeholder_px)).convert()
         placeholder.fill((200, 50, 200))
 
-        cache = LRUCache[tuple[int, int], _CachedChunkSurface](capacity=max_cached_chunks)
+        cache = LRUCache[tuple[int, int], _CachedChunkSurface](
+            capacity=max_cached_chunks
+        )
 
         return cls(
             tile_size=tile_size,

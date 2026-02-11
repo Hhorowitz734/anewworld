@@ -4,9 +4,10 @@ Generic least-recently-used (LRU) cache implementation.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from collections import OrderedDict
-from typing import Callable, Generic, Optional, TypeVar
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Generic, TypeVar
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -25,7 +26,7 @@ class LRUCache(Generic[K, V]):
     Must be greater than zero.
     """
 
-    on_evict: Optional[Callable[[K, V], None]] = None
+    on_evict: Callable[[K, V], None] | None = None
     """
     Optional callback invoked when an entry is evicted.
 
@@ -74,7 +75,7 @@ class LRUCache(Generic[K, V]):
         """
         return key in self._data
 
-    def get(self, key: K, default: Optional[V] = None) -> Optional[V]:
+    def get(self, key: K, default: V | None = None) -> V | None:
         """
         Retrieve a value from the cache and mark it as most recently used.
 
@@ -117,7 +118,7 @@ class LRUCache(Generic[K, V]):
         self._data[key] = value
         self._evict_if_needed()
 
-    def pop(self, key: K, default: Optional[V] = None) -> Optional[V]:
+    def pop(self, key: K, default: V | None = None) -> V | None:
         """
         Remove and return a cache entry without treating it as eviction.
 
@@ -151,4 +152,3 @@ class LRUCache(Generic[K, V]):
             key, value = self._data.popitem(last=False)
             if self.on_evict is not None:
                 self.on_evict(key, value)
-

@@ -38,12 +38,13 @@ class WorldMap:
     """
 
     @classmethod
-    def new(cls, 
-            *, 
-            chunk_size: int, 
-            generator: TerrainGenerator,
-            max_cached_chunks: int,
-            ) -> WorldMap:
+    def new(
+        cls,
+        *,
+        chunk_size: int,
+        generator: TerrainGenerator,
+        max_cached_chunks: int,
+    ) -> WorldMap:
         """
         Construct a new infinite world map.
 
@@ -59,20 +60,20 @@ class WorldMap:
         Returns
         -------
         WorldMap
-            A newly created WorldMap. 
+            A newly created WorldMap.
         """
         return cls(
             chunk_size=chunk_size,
             generator=generator,
             max_cached_chunks=max_cached_chunks,
-            _chunks=LRUCache(capacity=max_cached_chunks)
+            _chunks=LRUCache(capacity=max_cached_chunks),
         )
 
-
-    def _split_coords(self, 
-                      x: int, 
-                      y: int,
-                      ) -> tuple[int, int, int, int]:
+    def _split_coords(
+        self,
+        x: int,
+        y: int,
+    ) -> tuple[int, int, int, int]:
         """
         Convert world coords into chunk and local coords.
 
@@ -118,9 +119,9 @@ class WorldMap:
             return chunk
 
         terrain = self.generator.generate_chunk(
-            cx = cx,
-            cy = cy,
-            chunk_size = self.chunk_size,
+            cx=cx,
+            cy=cy,
+            chunk_size=self.chunk_size,
         )
 
         chunk = Chunk(size=self.chunk_size, terrain=terrain)

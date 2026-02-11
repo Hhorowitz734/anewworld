@@ -97,5 +97,5 @@ class TerrainPalette:
         cache = getattr(TerrainPalette._surface_cache, "_cache", None)
         if cache is None:
             cache = {}
-            setattr(TerrainPalette._surface_cache, "_cache", cache)
+            TerrainPalette._surface_cache._cache = cache
         return cache

@@ -7,7 +7,6 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class WindowConfig:
-    
     screen_width: int = 1000
     """
     Width of screen, pixels.

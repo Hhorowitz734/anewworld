@@ -2,8 +2,6 @@
 Moisture classification levels.
 """
 
-from enum import Enum
-
 
 class MoistureLevel:
     """
