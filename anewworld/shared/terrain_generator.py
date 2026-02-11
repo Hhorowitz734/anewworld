@@ -156,6 +156,9 @@ class TerrainGenerator:
     """
 
     def __post_init__(self) -> None:
+        """
+        Instantiate _TerrainParameter objects.
+        """
         object.__setattr__(
             self,
             "elevation",
