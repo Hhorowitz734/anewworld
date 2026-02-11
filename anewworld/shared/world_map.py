@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from .chunk import Chunk
 from .terrain_generator import TerrainGenerator
+from .tile_type import TileType
 from .utils.lru_cache import LRUCache
 
 
@@ -146,7 +147,7 @@ class WorldMap:
         """
         return self._get_chunk(cx, cy)
 
-    def terrain_at(self, x: int, y: int):
+    def terrain_at(self, x: int, y: int) -> TileType:
         """
         Retrieve the terrain type at world coordinates.
 

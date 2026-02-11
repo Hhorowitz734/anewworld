@@ -78,7 +78,7 @@ class _TerrainParameter(Generic[LevelT]):
             World y-coordinate in tiles
         """
         inv_scale = 1.0 / self.scale
-        return pnoise2(
+        sample: float = pnoise2(
             x * inv_scale,
             y * inv_scale,
             octaves=self.octaves,
@@ -86,6 +86,7 @@ class _TerrainParameter(Generic[LevelT]):
             lacunarity=self.lacunarity,
             base=self.seed,
         )
+        return sample
 
     def sample_q(self, *, x: float, y: float) -> int:
         """
@@ -191,7 +192,7 @@ class TerrainGenerator:
                 cutoffs=(
                     (-0.8, MoistureLevel.DRY),
                     (999999, MoistureLevel.WET),
-                ),
+                ),  # type: ignore[arg-type]
             ),
         )
 
