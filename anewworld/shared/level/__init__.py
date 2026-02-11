@@ -6,7 +6,7 @@ from enum import Enum
 from typing import TypeVar
 
 
-Level = TypeVar("Level", bound = Enum)
+LevelT = TypeVar("LevelT", bound = Enum)
 """
 Generic terrain level type.
 """

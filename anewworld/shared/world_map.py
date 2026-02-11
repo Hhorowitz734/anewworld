@@ -120,7 +120,7 @@ class WorldMap:
         terrain = self.generator.generate_chunk(
             cx = cx,
             cy = cy,
-            chunk_size = chunk_size,
+            chunk_size = self.chunk_size,
         )
 
         chunk = Chunk(size=self.chunk_size, terrain=terrain)
