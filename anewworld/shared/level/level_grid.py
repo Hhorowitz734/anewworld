@@ -4,14 +4,15 @@ N-dimensional LUT for level combinations.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Generic, Mapping, TypeVar
+from typing import Generic, TypeVar
 
 K = TypeVar("K")
 V = TypeVar("V")
 
 
-@dataclass(frozen = True, slots = True)
+@dataclass(frozen=True, slots=True)
 class LevelGrid(Generic[K, V]):
     """
     N-dimensional LUT mapping tuple of Levels to a TileType.

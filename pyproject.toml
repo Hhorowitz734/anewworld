@@ -44,5 +44,5 @@ packages = ["anewworld"]
 ignore_missing_imports = false
 
 [[tool.mypy.overrides]]
-module = ["pygame", "pygame.*"]
+module = ["pygame", "pygame.*", "noise", "noise.*"]
 ignore_missing_imports = true

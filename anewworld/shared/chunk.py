@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from .tile_type import TileType
 
 
-@dataclass(slots = True)
+@dataclass(slots=True)
 class Chunk:
     """
     Internal storage for fixed-size square region.
@@ -60,4 +60,3 @@ class Chunk:
             Terrain at (x, y)
         """
         return self.terrain[self._idx(x, y)]
-

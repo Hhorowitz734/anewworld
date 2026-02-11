@@ -9,11 +9,11 @@ from typing import Generic
 
 from noise import pnoise2
 
-from .tile_type import TileType
 from .level import LevelT
-from .level.level_grid import LevelGrid
 from .level.elevation import ElevationLevel
+from .level.level_grid import LevelGrid
 from .level.moisture import MoistureLevel
+from .tile_type import TileType
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +78,7 @@ class _TerrainParameter(Generic[LevelT]):
             World y-coordinate in tiles
         """
         inv_scale = 1.0 / self.scale
-        return pnoise2(
+        sample: float = pnoise2(
             x * inv_scale,
             y * inv_scale,
             octaves=self.octaves,
@@ -86,6 +86,7 @@ class _TerrainParameter(Generic[LevelT]):
             lacunarity=self.lacunarity,
             base=self.seed,
         )
+        return sample
 
     def sample_q(self, *, x: float, y: float) -> int:
         """
@@ -156,6 +157,9 @@ class TerrainGenerator:
     """
 
     def __post_init__(self) -> None:
+        """
+        Instantiate _TerrainParameter objects.
+        """
         object.__setattr__(
             self,
             "elevation",
@@ -188,17 +192,11 @@ class TerrainGenerator:
                 cutoffs=(
                     (-0.8, MoistureLevel.DRY),
                     (999999, MoistureLevel.WET),
-                ),
+                ),  # type: ignore[arg-type]
             ),
         )
 
-    def generate_chunk(
-        self,
-        *,
-        cx: int,
-        cy: int,
-        chunk_size: int
-    ) -> list[TileType]:
+    def generate_chunk(self, *, cx: int, cy: int, chunk_size: int) -> list[TileType]:
         """
         Generate terrain for a single chunk.
 
@@ -219,7 +217,7 @@ class TerrainGenerator:
         wx0 = cx * chunk_size
         wy0 = cy * chunk_size
 
-        out: list[TileType] = [TileType.DEFAULT_GRASS] * (chunk_size ** 2)
+        out: list[TileType] = [TileType.DEFAULT_GRASS] * (chunk_size**2)
 
         xs = [float(wx0 + lx) for lx in range(chunk_size)]
 
@@ -239,4 +237,3 @@ class TerrainGenerator:
                 out[row_off + lx] = self.land_grid.get(elev, moist)
 
         return out
-
