@@ -4,17 +4,17 @@ Client-side logic for anewworld.
 
 from __future__ import annotations
 
-import sys
 import asyncio
+import sys
 
 import pygame
 
-from anewworld.client.config import WindowConfig, ClientConfig
+from anewworld.client.config import ClientConfig, WindowConfig
 from anewworld.client.controls import Controls
+from anewworld.client.net.client import ServerConnection
 from anewworld.client.renderer.camera import Camera
 from anewworld.client.renderer.chunk_renderer import ChunkRenderer
 from anewworld.client.renderer.terrain_palette import TerrainPalette
-from anewworld.client.net.client import ServerConnection
 from anewworld.shared.config import WorldConfig
 from anewworld.shared.terrain_generator import TerrainGenerator
 from anewworld.shared.world_map import WorldMap
@@ -97,4 +97,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
