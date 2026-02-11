@@ -4,14 +4,13 @@ Client networking utilities.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
-
 import asyncio
 import json
+from dataclasses import dataclass
+from typing import Any
 
 
-def _dumps(obj: Dict[str, Any]) -> bytes:
+def _dumps(obj: dict[str, Any]) -> bytes:
     """
     Encode a message as newline-delimited JSON bytes.
 
@@ -60,12 +59,7 @@ class ServerConnection:
     """
 
     @classmethod
-    async def connect(
-        cls,
-        *,
-        host: str,
-        port: int
-        ) -> ServerConnection:
+    async def connect(cls, *, host: str, port: int) -> ServerConnection:
         """
         Connect to the server and request PlayerId.
 
@@ -104,9 +98,11 @@ class ServerConnection:
             raise RuntimeError(f"Unexpected handshake response: {line!r}")
 
         player_id = int(msg["player_id"])
-        return cls(host=host, port=port, reader=reader, writer=writer, player_id=player_id)
+        return cls(
+            host=host, port=port, reader=reader, writer=writer, player_id=player_id
+        )
 
-    async def send(self, msg: Dict[str, Any]) -> None:
+    async def send(self, msg: dict[str, Any]) -> None:
         """
         Send a single message to the server.
 
@@ -122,7 +118,7 @@ class ServerConnection:
         self.writer.write(_dumps(msg))
         await self.writer.drain()
 
-    async def recv(self) -> Dict[str, Any]:
+    async def recv(self) -> dict[str, Any]:
         """
         Receive a single message from the server.
 
@@ -156,7 +152,7 @@ class ServerConnection:
         await self.writer.wait_closed()
 
     @staticmethod
-    def _parse(line: bytes) -> Optional[Dict[str, Any]]:
+    def _parse(line: bytes) -> dict[str, Any] | None:
         """
         Parse a single JSON line.
 
