@@ -6,11 +6,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any
 
 from .sessions import Session, SessionRegistry, new_player_id
+
+logger = logging.getLogger(__name__)
 
 
 def _dumps(obj: dict[str, Any]) -> bytes:
@@ -72,6 +75,9 @@ class GameServer:
         -------
         None
         """
+        peer = writer.get_extra_info("peername")
+        logger.info("Client connected: %s", peer)
+
         try:
             while True:
                 line = await reader.readline()
@@ -82,20 +88,38 @@ class GameServer:
 
                 msg = self._parse(line)
                 if msg is None:
+                    logger.warning("Bad JSON from %s: %r", peer, line[:200])
                     await self._send(writer, {"t": "error", "reason": "bad_json"})
                     continue
 
                 msg_type = msg.get("t")
                 if msg_type == "request_id":
-                    await self._handle_request_id(writer)
+                    await self._handle_request_id(writer, peer=peer)
                     continue
 
+                logger.warning("Unknown message from %s: %s", peer, msg_type)
                 await self._send(
                     writer,
                     {"t": "error", "reason": "unknown_message"},
                 )
+        except ConnectionResetError:
+            logger.info("Client reset connection: %s", peer)
+        except Exception:
+            logger.exception("Unhandled error while serving client: %s", peer)
         finally:
-            self.sessions.remove_by_writer(writer)
+            removed = self.sessions.remove_by_writer(writer)
+            active = self.sessions.count()
+
+            if removed is not None:
+                logger.info(
+                    "Client disconnected: %s player_id=%d active=%d",
+                    peer,
+                    removed.player_id,
+                    active,
+                )
+            else:
+                logger.info("Client disconnected: %s active=%d", peer, active)
+
             writer.close()
             await writer.wait_closed()
 
@@ -126,6 +150,8 @@ class GameServer:
     async def _handle_request_id(
         self,
         writer: asyncio.StreamWriter,
+        *,
+        peer: Any,
     ) -> None:
         """
         Handle a client request for a player identifier.
@@ -138,6 +164,8 @@ class GameServer:
         ----------
         writer : asyncio.StreamWriter
             Stream writer associated with the requesting client.
+        peer : Any
+            Peer name reported by asyncio (typically (ip, port)).
 
         Returns
         -------
@@ -145,6 +173,12 @@ class GameServer:
         """
         existing_pid = self.sessions.by_writer.get(writer)
         if existing_pid is not None:
+            logger.debug(
+                "Re-sent player_id=%d to %s (active=%d)",
+                existing_pid,
+                peer,
+                self.sessions.count(),
+            )
             await self._send(
                 writer,
                 {"t": "assign_id", "player_id": existing_pid},
@@ -163,6 +197,12 @@ class GameServer:
 
         self.sessions.add(session)
 
+        logger.info(
+            "Assigned player_id=%d to %s (active=%d)",
+            player_id,
+            peer,
+            self.sessions.count(),
+        )
         await self._send(
             writer,
             {"t": "assign_id", "player_id": player_id},
