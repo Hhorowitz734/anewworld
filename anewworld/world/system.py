@@ -1,4 +1,0 @@
-"""
-Systems for anewworld.
-"""
-# TODO

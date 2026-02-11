@@ -5,14 +5,15 @@ Chunk-based renderer with surface caching.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from collections import OrderedDict, deque
+from collections import deque
 from typing import Deque, Set
 
 import pygame
 
-from anewworld.render.camera import Camera
-from anewworld.render.palette import TerrainPalette
-from anewworld.world.tile.tilemap import TileMap
+from .camera import Camera
+from .terrain_palette import TerrainPalette
+from anewworld.shared.world_map import WorldMap
+from anewworld.shared.utils.lru_cache import LRUCache
 
 
 @dataclass(slots=True)
@@ -64,14 +65,9 @@ class ChunkRenderer:
     Maximum time to spend building new chunk surfaces per frame.
     """
 
-    _cache: dict[tuple[int, int], _CachedChunkSurface]
+    _cache: LRUCache[tuple[int, int], _CachedChunkSurface]
     """
     Cached surfaces keyed by chunk coordinates.
-    """
-
-    _lru: OrderedDict[tuple[int, int], None]
-    """
-    LRU ordering for cached chunk keys.
     """
 
     _build_queue: Deque[tuple[int, int]]
@@ -130,6 +126,8 @@ class ChunkRenderer:
         placeholder = pygame.Surface((placeholder_px, placeholder_px)).convert()
         placeholder.fill((200, 50, 200))
 
+        cache = LRUCache[tuple[int, int], _CachedChunkSurface](capacity=max_cached_chunks)
+
         return cls(
             tile_size=tile_size,
             chunk_size=chunk_size,
@@ -137,8 +135,7 @@ class ChunkRenderer:
             padding_chunks=padding_chunks,
             palette=palette,
             build_budget_ms=build_budget_ms,
-            _cache={},
-            _lru=OrderedDict(),
+            _cache=cache,
             _build_queue=deque(),
             _build_set=set(),
             _placeholder=placeholder,
@@ -148,7 +145,7 @@ class ChunkRenderer:
         self,
         *,
         screen: pygame.Surface,
-        tilemap: TileMap,
+        world_map: WorldMap,
         camera: Camera,
     ) -> None:
         """
@@ -158,13 +155,11 @@ class ChunkRenderer:
         ----------
         screen : pygame.Surface
             Destination surface for rendering.
-        tilemap : TileMap
-            Tile map to render.
+        world_map : WorldMap
+            World map to render.
         camera : Camera
             Camera describing visible region in world px.
         """
-        import time
-
         screen_w = screen.get_width()
         screen_h = screen.get_height()
 
@@ -180,13 +175,13 @@ class ChunkRenderer:
         right = cam_x + screen_w
         bottom = cam_y + screen_h
 
-        cx0 = self._floor_div(left, chunk_px) - self.padding_chunks
-        cy0 = self._floor_div(top, chunk_px) - self.padding_chunks
-        cx1 = self._floor_div(right - 1, chunk_px) + self.padding_chunks
-        cy1 = self._floor_div(bottom - 1, chunk_px) + self.padding_chunks
+        cx0 = (left // chunk_px) - self.padding_chunks
+        cy0 = (top // chunk_px) - self.padding_chunks
+        cx1 = ((right - 1) // chunk_px) + self.padding_chunks
+        cy1 = ((bottom - 1) // chunk_px) + self.padding_chunks
 
         self._enqueue_visible(cx0=cx0, cy0=cy0, cx1=cx1, cy1=cy1)
-        self._build_budgeted(tilemap=tilemap)
+        self._build_budgeted(world_map=world_map)
 
         blit = screen.blit
         placeholder = self._placeholder
@@ -200,12 +195,9 @@ class ChunkRenderer:
                     surf = placeholder
                 else:
                     surf = cached.surface
-                    self._touch_lru(key)
 
                 dest_x = cx * chunk_px - cam_x
                 blit(surf, (dest_x, dest_y))
-
-        self._evict_if_needed()
 
     def _enqueue_visible(self, *, cx0: int, cy0: int, cx1: int, cy1: int) -> None:
         """
@@ -230,14 +222,14 @@ class ChunkRenderer:
                 self._build_queue.append(key)
                 self._build_set.add(key)
 
-    def _build_budgeted(self, *, tilemap: TileMap) -> None:
+    def _build_budgeted(self, *, world_map: WorldMap) -> None:
         """
         Build queued chunk surfaces up to the per-frame time budget.
 
         Parameters
         ----------
-        tilemap : TileMap
-            Tile map providing terrain data.
+        world_map : WorldMap
+            World map providing terrain data.
         """
         import time
 
@@ -255,20 +247,23 @@ class ChunkRenderer:
             if key in self._cache:
                 continue
 
-            surf = self._build_chunk_surface(tilemap=tilemap, cx=cx, cy=cy)
-            self._cache[key] = _CachedChunkSurface(surface=surf)
-            self._touch_lru(key)
+            surf = self._build_chunk_surface(world_map=world_map, cx=cx, cy=cy)
+            self._cache.put(key, _CachedChunkSurface(surface=surf))
 
     def _get_chunk_surface(
-        self, *, tilemap: TileMap, cx: int, cy: int
+        self,
+        *,
+        world_map: WorldMap,
+        cx: int,
+        cy: int,
     ) -> pygame.Surface:
         """
         Retrieve a cached chunk surface if available.
 
         Parameters
         ----------
-        tilemap : TileMap
-            Tile map providing terrain data.
+        world_map : WorldMap
+            World map providing terrain data.
         cx : int
             Chunk X coordinate.
         cy : int
@@ -287,19 +282,22 @@ class ChunkRenderer:
                 self._build_set.add(key)
             return self._placeholder
 
-        self._touch_lru(key)
         return cached.surface
 
     def _build_chunk_surface(
-        self, *, tilemap: TileMap, cx: int, cy: int
+        self,
+        *,
+        world_map: WorldMap,
+        cx: int,
+        cy: int,
     ) -> pygame.Surface:
         """
         Build a surface for a chunk by drawing all tiles in it once.
 
         Parameters
         ----------
-        tilemap : TileMap
-            Tile map providing terrain data.
+        world_map : WorldMap
+            World map providing terrain data.
         cx : int
             Chunk X coordinate.
         cy : int
@@ -328,7 +326,7 @@ class ChunkRenderer:
                 wx = base_x + lx
                 px = lx * tile_size
 
-                terrain = tilemap.terrain_at(wx, wy)
+                terrain = world_map.terrain_at(wx, wy)
 
                 tile = tile_for.get(terrain)
                 if tile is None:
@@ -338,43 +336,3 @@ class ChunkRenderer:
                 surface.blit(tile, (px, py))
 
         return surface
-
-    def _touch_lru(self, key: tuple[int, int]) -> None:
-        """
-        Mark a chunk key as most recently used.
-
-        Parameters
-        ----------
-        key : tuple[int, int]
-            Chunk coordinate key.
-        """
-        self._lru[key] = None
-        self._lru.move_to_end(key, last=True)
-
-    def _evict_if_needed(self) -> None:
-        """
-        Evict least recently used cached chunk surfaces if cache is full.
-        """
-        while len(self._cache) > self.max_cached_chunks:
-            oldest_key, _ = self._lru.popitem(last=False)
-            self._cache.pop(oldest_key, None)
-
-    @staticmethod
-    def _floor_div(a: int, b: int) -> int:
-        """
-        Floor divide for chunk coordinate math.
-
-        Parameters
-        ----------
-        a : int
-            Dividend.
-        b : int
-            Divisor.
-
-        Returns
-        -------
-        int
-            Floor-divided result.
-        """
-        return a // b
-

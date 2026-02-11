@@ -8,15 +8,13 @@ from dataclasses import dataclass
 
 import pygame
 
-from anewworld.world.tile.tiletype import TileType
+from anewworld.shared.tile_type import TileType
 
 
 @dataclass(frozen=True, slots=True)
 class TerrainPalette:
     """
     Surface palette for terrain rendering.
-
-    Surfaces are created lazily and cached by (tile_size, terrain).
     """
 
     land: tuple[int, int, int] = (70, 150, 80)
@@ -78,13 +76,13 @@ class TerrainPalette:
         """
         Map a terrain type to an RGB color.
         """
-        if terrain == TileType.LAND:
+        if terrain == TileType.DEFAULT_GRASS:
             return self.land
-        if terrain == TileType.WATER:
+        if terrain == TileType.DEFAULT_WATER:
             return self.water
-        if terrain == TileType.RAINFOREST:
+        if terrain == TileType.DARK_GRASS:
             return self.rainforest
-        if terrain == TileType.DEEPWATER:
+        if terrain == TileType.DEEP_WATER:
             return self.deepwater
         return self.unknown
 
@@ -101,4 +99,3 @@ class TerrainPalette:
             cache = {}
             setattr(TerrainPalette._surface_cache, "_cache", cache)
         return cache
-

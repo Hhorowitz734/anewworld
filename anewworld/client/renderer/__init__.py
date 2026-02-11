@@ -1,0 +1,3 @@
+"""
+Rendering logic for client.
+"""
