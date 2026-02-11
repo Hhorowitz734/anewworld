@@ -5,8 +5,11 @@ Entry point for running server.
 from __future__ import annotations
 
 import asyncio
+import logging
+import socket
 
 from .config import ServerConfig
+from .logging import setup_logging
 from .net import GameServer
 
 
@@ -15,11 +18,18 @@ async def main() -> None:
     Game server run.
     """
     server_cfg = ServerConfig()
+    setup_logging()
+    logger = logging.getLogger(__name__)
 
     server = GameServer.new()
     tcp = await asyncio.start_server(
         server.handle_client, host=server_cfg.host, port=server_cfg.port
     )
+
+    sockets: tuple[socket.socket, ...] = tcp.sockets or ()
+    binds = ", ".join(str(s.getsockname()) for s in sockets)
+    logger.info("Server listening on %s", binds)
+
     async with tcp:
         await tcp.serve_forever()
 
