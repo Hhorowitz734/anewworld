@@ -10,6 +10,7 @@ from anewworld.shared.terrain_generator import TerrainGenerator
 from anewworld.shared.world_map import WorldMap
 from anewworld.shared.level.level_grid import LevelGrid
 from anewworld.shared.config import WorldConfig
+from anewworld.client.config import WindowConfig
 from anewworld.client.renderer.chunk_renderer import ChunkRenderer
 from anewworld.client.renderer.terrain_palette import TerrainPalette
 from anewworld.client.renderer.camera import Camera
@@ -24,8 +25,11 @@ def main() -> None:
     pygame.init()
 
     world_cfg = WorldConfig()
+    window_cfg = WindowConfig()
 
-    screen = pygame.display.set_mode((800, 800))
+    screen = pygame.display.set_mode(
+            (window_cfg.screen_width, 
+             window_cfg.screen_height))
     pygame.display.set_caption("A New World")
 
     clock = pygame.time.Clock()
@@ -41,7 +45,7 @@ def main() -> None:
     )
 
     renderer = ChunkRenderer.new(
-        tile_size = 10,
+        tile_size = window_cfg.tile_size,
         chunk_size = world_cfg.chunk_size,
         max_cached_chunks = 256,
         padding_chunks = 3,
@@ -54,7 +58,7 @@ def main() -> None:
 
     running = True
     while running:
-        clock.tick(120)
+        clock.tick(window_cfg.fps)
         
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:

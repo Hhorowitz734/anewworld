@@ -15,7 +15,7 @@ class WorldConfig:
     Configuration of game world.
     """
 
-    chunk_size: int = 64
+    chunk_size: int = 32
     """
     Width and height of chunk (tiles).
     """

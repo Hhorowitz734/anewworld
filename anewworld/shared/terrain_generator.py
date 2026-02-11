@@ -186,7 +186,7 @@ class TerrainGenerator:
                 amplitude=5.0,
                 bias=0.0,
                 cutoffs=(
-                    (-1, MoistureLevel.DRY),
+                    (-0.8, MoistureLevel.DRY),
                     (999999, MoistureLevel.WET),
                 ),
             ),
