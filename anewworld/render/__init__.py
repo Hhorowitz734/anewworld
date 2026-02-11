@@ -1,3 +1,0 @@
-"""
-Rendering package for anewworld.
-"""
