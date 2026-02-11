@@ -15,6 +15,7 @@ from anewworld.shared.tile_type import TileType
 from anewworld.client.renderer.chunk_renderer import ChunkRenderer
 from anewworld.client.renderer.terrain_palette import TerrainPalette
 from anewworld.client.renderer.camera import Camera
+from anewworld.client.controls import Controls
 
 
 def main() -> None:
@@ -60,6 +61,8 @@ def main() -> None:
     )
 
     camera = Camera()
+    controls = Controls(camera = camera,
+                        pan_button = 1)
 
     running = True
     while running:
@@ -69,6 +72,7 @@ def main() -> None:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 running = False
                 continue
+            controls.handle_event(event)
 
         
         screen.fill((0, 0, 0))
