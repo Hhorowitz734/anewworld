@@ -42,3 +42,15 @@ class ClientConfig:
     """
     Decides whether to connect to server.
     """
+
+
+@dataclass(frozen=True, slots=True)
+class DevConfig:
+    """
+    Developer only configuration.
+    """
+
+    debug: bool = True
+    """
+    Debug mode.
+    """
