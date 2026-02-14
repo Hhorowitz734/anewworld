@@ -8,9 +8,10 @@ import asyncio
 import logging
 import socket
 
+from anewworld.server import GameServer
+
 from .config import ServerConfig
 from .logging import setup_logging
-from .net import GameServer
 
 
 async def main() -> None:
