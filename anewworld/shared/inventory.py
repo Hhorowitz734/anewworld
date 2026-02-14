@@ -67,3 +67,89 @@ class Inventory:
             if isinstance(v, int) and v >= 0:
                 amounts[rt] = v
         return cls(amounts=amounts)
+
+    def get(self, resource: Resource) -> int:
+        """
+        Get quantity of a resource.
+
+        Parameters
+        ----------
+        resource : Resource
+            Resource type.
+
+        Returns
+        -------
+        int
+            Quantity owned (0 if absent).
+        """
+        return self.amounts.get(resource, 0)
+
+    def has(self, resource: Resource, qty: int = 1) -> bool:
+        """
+        Check if inventory contains at least qty of resource.
+
+        Parameters
+        ----------
+        resource : Resource
+            Resource type.
+        qty : int
+            Required quantity.
+
+        Returns
+        -------
+        bool
+            True if sufficient quantity exists.
+        """
+        if qty <= 0:
+            return True
+        return self.get(resource) >= qty
+
+    def add(self, resource: Resource, qty: int) -> None:
+        """
+        Add quantity of a resource.
+
+        Parameters
+        ----------
+        resource : Resource
+            Resource type.
+        qty : int
+            Quantity to add.
+
+        Returns
+        -------
+        None
+        """
+        if qty <= 0:
+            return
+        self.amounts[resource] = self.get(resource) + qty
+
+    def try_remove(self, resource: Resource, qty: int) -> bool:
+        """
+        Attempt to remove quantity of a resource.
+
+        Parameters
+        ----------
+        resource : Resource
+            Resource type.
+        qty : int
+            Quantity to remove.
+
+        Returns
+        -------
+        bool
+            True if removal succeeded, False otherwise.
+        """
+        if qty <= 0:
+            return True
+
+        current = self.get(resource)
+        if current < qty:
+            return False
+
+        new_amount = current - qty
+        if new_amount == 0:
+            self.amounts.pop(resource, None)
+        else:
+            self.amounts[resource] = new_amount
+
+        return True
