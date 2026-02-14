@@ -21,14 +21,15 @@ async def main() -> None:
     setup_logging()
     logger = logging.getLogger(__name__)
 
-    server = GameServer.new()
+    server = GameServer.new(server_cfg.debug)
     tcp = await asyncio.start_server(
         server.handle_client, host=server_cfg.host, port=server_cfg.port
     )
 
     sockets: tuple[socket.socket, ...] = tcp.sockets or ()
     binds = ", ".join(str(s.getsockname()) for s in sockets)
-    logger.info("Server listening on %s", binds)
+    if server_cfg.debug:
+        logger.info("Server listening on %s", binds)
 
     async with tcp:
         await tcp.serve_forever()
