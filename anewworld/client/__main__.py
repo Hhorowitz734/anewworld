@@ -12,6 +12,7 @@ import pygame
 from anewworld.client.config import ClientConfig, WindowConfig
 from anewworld.client.controls import Controls
 from anewworld.client.net.client import ServerConnection
+from anewworld.client.net.client_state import ClientState
 from anewworld.client.renderer.camera import Camera
 from anewworld.client.renderer.chunk_renderer import ChunkRenderer
 from anewworld.client.renderer.terrain_palette import TerrainPalette
@@ -31,14 +32,17 @@ def main() -> None:
     client_cfg = ClientConfig()
 
     conn: ServerConnection | None = None
+    state: ClientState | None = None
+
     if not client_cfg.singleplayer:
-        conn = asyncio.run(
+        conn, state = asyncio.run(
             ServerConnection.connect(
                 host="127.0.0.1",
                 port=7777,
             )
         )
         print(f"Connected as {conn.player_id}")
+        print(f"Inventory: {state.inventory.to_wire()}")
 
     try:
         screen = pygame.display.set_mode(

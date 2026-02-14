@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from .inventory_registry import InventoryRegistry
 from .sessions import Session, SessionRegistry, new_player_id
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,11 @@ class GameServer:
     Registry of currently connected player sessions.
     """
 
+    inventories: InventoryRegistry
+    """
+    Registry of inventories of connected players.
+    """
+
     @classmethod
     def new(cls) -> GameServer:
         """
@@ -54,7 +60,10 @@ class GameServer:
         GameServer
             Newly created server with an empty session registry.
         """
-        return cls(sessions=SessionRegistry.new())
+        return cls(
+            sessions=SessionRegistry.new(),
+            inventories=InventoryRegistry.new(),
+        )
 
     async def handle_client(
         self,
@@ -95,6 +104,10 @@ class GameServer:
                 msg_type = msg.get("t")
                 if msg_type == "request_id":
                     await self._handle_request_id(writer, peer=peer)
+                    continue
+
+                if msg_type == "request_inventory":
+                    await self._handle_request_inventory(writer, peer=peer)
                     continue
 
                 logger.warning("Unknown message from %s: %s", peer, msg_type)
@@ -183,6 +196,11 @@ class GameServer:
                 writer,
                 {"t": "assign_id", "player_id": existing_pid},
             )
+            inv = self.inventories.get_or_create(existing_pid)
+            await self._send(
+                writer,
+                {"t": "inventory", "player_id": existing_pid, "items": inv.to_wire()},
+            )
             return
 
         now = time.time()
@@ -207,6 +225,11 @@ class GameServer:
             writer,
             {"t": "assign_id", "player_id": player_id},
         )
+        inv = self.inventories.get_or_create(player_id)
+        await self._send(
+            writer,
+            {"t": "inventory", "player_id": player_id, "items": inv.to_wire()},
+        )
 
     async def _send(
         self,
@@ -229,3 +252,35 @@ class GameServer:
         """
         writer.write(_dumps(obj))
         await writer.drain()
+
+    async def _handle_request_inventory(
+        self,
+        writer: asyncio.StreamWriter,
+        *,
+        peer: Any,
+    ) -> None:
+        """
+        Handle a client request for current inventory snapshot.
+
+        Parameters
+        ----------
+        writer : asyncio.StreamWriter
+            Stream writer associated with the requesting client.
+        peer : Any
+            Peer name reported by asyncio (typically (ip, port)).
+
+        Returns
+        -------
+        None
+        """
+        player_id = self.sessions.by_writer.get(writer)
+        if player_id is None:
+            logger.debug("Inventory requested before id assignment: %s", peer)
+            await self._send(writer, {"t": "error", "reason": "no_player_id"})
+            return
+
+        inv = self.inventories.get_or_create(player_id)
+        await self._send(
+            writer,
+            {"t": "inventory", "player_id": player_id, "items": inv.to_wire()},
+        )
