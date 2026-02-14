@@ -24,5 +24,3 @@ class ClientState:
     """
     Latest inventory snapshot received from server.
     """
-
-    # TODO: Make sure this stores state and not client connection class

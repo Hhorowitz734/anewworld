@@ -9,6 +9,9 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from anewworld.client.net.client_state import ClientState
+from anewworld.shared.inventory import Inventory
+
 
 def _dumps(obj: dict[str, Any]) -> bytes:
     """
@@ -50,7 +53,7 @@ class ServerConnection:
 
     writer: asyncio.StreamWriter
     """
-    Stream writer associated with the server connecion.
+    Stream writer associated with the server connection.
     """
 
     player_id: int
@@ -59,9 +62,14 @@ class ServerConnection:
     """
 
     @classmethod
-    async def connect(cls, *, host: str, port: int) -> ServerConnection:
+    async def connect(
+        cls,
+        *,
+        host: str,
+        port: int,
+    ) -> tuple[ServerConnection, ClientState]:
         """
-        Connect to the server and request PlayerId.
+        Connect to the server, perform handshake, and bootstrap client state.
 
         Parameters
         ----------
@@ -72,8 +80,8 @@ class ServerConnection:
 
         Returns
         -------
-        ServerConnection
-            Connected session with assigned player id.
+        tuple[ServerConnection, ClientState]
+            Active connection and initialized client state.
 
         Raises
         ------
@@ -85,6 +93,7 @@ class ServerConnection:
         writer.write(_dumps({"t": "request_id"}))
         await writer.drain()
 
+        # --- Expect assign_id ---
         line = await reader.readline()
         if not line:
             writer.close()
@@ -95,14 +104,44 @@ class ServerConnection:
         if msg is None or msg.get("t") != "assign_id" or "player_id" not in msg:
             writer.close()
             await writer.wait_closed()
-            raise RuntimeError(f"Unexpected handshake response: {line!r}")
+            raise RuntimeError(f"Unexpected handshake response (assign_id): {line!r}")
 
         player_id = int(msg["player_id"])
-        return cls(
-            host=host, port=port, reader=reader, writer=writer, player_id=player_id
+
+        # --- Expect inventory snapshot ---
+        line = await reader.readline()
+        if not line:
+            writer.close()
+            await writer.wait_closed()
+            raise RuntimeError("Server closed connection during inventory bootstrap.")
+
+        msg = cls._parse(line)
+        if msg is None or msg.get("t") != "inventory" or "items" not in msg:
+            writer.close()
+            await writer.wait_closed()
+            raise RuntimeError(f"Unexpected handshake response (inventory): {line!r}")
+
+        inventory = Inventory.from_wire(msg.get("items", {}))
+
+        conn = cls(
+            host=host,
+            port=port,
+            reader=reader,
+            writer=writer,
+            player_id=player_id,
         )
 
-    async def send(self, msg: dict[str, Any]) -> None:
+        state = ClientState(
+            player_id=player_id,
+            inventory=inventory,
+        )
+
+        return conn, state
+
+    async def send(
+        self,
+        msg: dict[str, Any],
+    ) -> None:
         """
         Send a single message to the server.
 
@@ -130,14 +169,16 @@ class ServerConnection:
         Raises
         ------
         RuntimeError
-            If the server closes the connection.
+            If the server closes the connection or sends invalid JSON.
         """
         line = await self.reader.readline()
         if not line:
             raise RuntimeError("Server closed connection.")
+
         msg = self._parse(line)
         if msg is None:
             raise RuntimeError(f"Bad JSON from server: {line!r}")
+
         return msg
 
     async def close(self) -> None:
@@ -170,6 +211,8 @@ class ServerConnection:
             obj = json.loads(line.decode("utf-8"))
         except json.JSONDecodeError:
             return None
+
         if not isinstance(obj, dict):
             return None
+
         return obj
