@@ -50,10 +50,20 @@ class GameServer:
     Registry of inventories of connected players.
     """
 
+    debug: bool
+    """
+    Flag for whether to write debug messages.
+    """
+
     @classmethod
-    def new(cls) -> GameServer:
+    def new(cls, debug: bool = True) -> GameServer:
         """
         Construct a new game server instance.
+
+        Parameters
+        ----------
+        debug : bool
+            Flag for whether to write debug messages.
 
         Returns
         -------
@@ -63,7 +73,80 @@ class GameServer:
         return cls(
             sessions=SessionRegistry.new(),
             inventories=InventoryRegistry.new(),
+            debug=debug,
         )
+
+    def _log_debug(self, msg: str, *args: Any) -> None:
+        """
+        Emit debug logs only when debug is enabled.
+
+        Parameters
+        ----------
+        msg : str
+            Logging format string.
+        *args : Any
+            Arguments interpolated into msg.
+
+        Returns
+        -------
+        None
+        """
+        if self.debug:
+            logger.debug(msg, *args)
+
+    def _log_info(self, msg: str, *args: Any) -> None:
+        """
+        Emit info logs only when debug is enabled.
+
+        Parameters
+        ----------
+        msg : str
+            Logging format string.
+        *args : Any
+            Arguments interpolated into msg.
+
+        Returns
+        -------
+        None
+        """
+        if self.debug:
+            logger.info(msg, *args)
+
+    def _log_warning(self, msg: str, *args: Any) -> None:
+        """
+        Emit warning logs only when debug is enabled.
+
+        Parameters
+        ----------
+        msg : str
+            Logging format string.
+        *args : Any
+            Arguments interpolated into msg.
+
+        Returns
+        -------
+        None
+        """
+        if self.debug:
+            logger.warning(msg, *args)
+
+    def _log_exception(self, msg: str, *args: Any) -> None:
+        """
+        Emit exception logs only when debug is enabled.
+
+        Parameters
+        ----------
+        msg : str
+            Logging format string.
+        *args : Any
+            Arguments interpolated into msg.
+
+        Returns
+        -------
+        None
+        """
+        if self.debug:
+            logger.exception(msg, *args)
 
     async def handle_client(
         self,
@@ -85,7 +168,7 @@ class GameServer:
         None
         """
         peer = writer.get_extra_info("peername")
-        logger.info("Client connected: %s", peer)
+        self._log_info("Client connected: %s", peer)
 
         try:
             while True:
@@ -97,7 +180,7 @@ class GameServer:
 
                 msg = self._parse(line)
                 if msg is None:
-                    logger.warning("Bad JSON from %s: %r", peer, line[:200])
+                    self._log_warning("Bad JSON from %s: %r", peer, line[:200])
                     await self._send(writer, {"t": "error", "reason": "bad_json"})
                     continue
 
@@ -110,28 +193,28 @@ class GameServer:
                     await self._handle_request_inventory(writer, peer=peer)
                     continue
 
-                logger.warning("Unknown message from %s: %s", peer, msg_type)
+                self._log_warning("Unknown message from %s: %s", peer, msg_type)
                 await self._send(
                     writer,
                     {"t": "error", "reason": "unknown_message"},
                 )
         except ConnectionResetError:
-            logger.info("Client reset connection: %s", peer)
+            self._log_info("Client reset connection: %s", peer)
         except Exception:
-            logger.exception("Unhandled error while serving client: %s", peer)
+            self._log_exception("Unhandled error while serving client: %s", peer)
         finally:
             removed = self.sessions.remove_by_writer(writer)
             active = self.sessions.count()
 
             if removed is not None:
-                logger.info(
+                self._log_info(
                     "Client disconnected: %s player_id=%d active=%d",
                     peer,
                     removed.player_id,
                     active,
                 )
             else:
-                logger.info("Client disconnected: %s active=%d", peer, active)
+                self._log_info("Client disconnected: %s active=%d", peer, active)
 
             writer.close()
             await writer.wait_closed()
@@ -186,7 +269,7 @@ class GameServer:
         """
         existing_pid = self.sessions.by_writer.get(writer)
         if existing_pid is not None:
-            logger.debug(
+            self._log_debug(
                 "Re-sent player_id=%d to %s (active=%d)",
                 existing_pid,
                 peer,
@@ -215,7 +298,7 @@ class GameServer:
 
         self.sessions.add(session)
 
-        logger.info(
+        self._log_info(
             "Assigned player_id=%d to %s (active=%d)",
             player_id,
             peer,
@@ -275,7 +358,7 @@ class GameServer:
         """
         player_id = self.sessions.by_writer.get(writer)
         if player_id is None:
-            logger.debug("Inventory requested before id assignment: %s", peer)
+            self._log_debug("Inventory requested before id assignment: %s", peer)
             await self._send(writer, {"t": "error", "reason": "no_player_id"})
             return
 

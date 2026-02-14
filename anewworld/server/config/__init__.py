@@ -20,3 +20,8 @@ class ServerConfig:
     """
     Server port.
     """
+
+    debug: bool = True
+    """
+    Debug flag.
+    """

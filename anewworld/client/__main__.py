@@ -9,7 +9,7 @@ import sys
 
 import pygame
 
-from anewworld.client.config import ClientConfig, WindowConfig
+from anewworld.client.config import ClientConfig, DevConfig, WindowConfig
 from anewworld.client.controls import Controls
 from anewworld.client.net.client import ServerConnection
 from anewworld.client.net.client_state import ClientState
@@ -30,6 +30,7 @@ def main() -> None:
     world_cfg = WorldConfig()
     window_cfg = WindowConfig()
     client_cfg = ClientConfig()
+    dev_cfg = DevConfig()
 
     conn: ServerConnection | None = None
     state: ClientState | None = None
@@ -41,8 +42,9 @@ def main() -> None:
                 port=7777,
             )
         )
-        print(f"Connected as {conn.player_id}")
-        print(f"Inventory: {state.inventory.to_wire()}")
+        if dev_cfg.debug:
+            print(f"Connected as {conn.player_id}")
+            print(f"Inventory: {state.inventory.to_wire()}")
 
     try:
         screen = pygame.display.set_mode(
