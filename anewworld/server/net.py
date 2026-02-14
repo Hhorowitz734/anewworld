@@ -12,7 +12,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from .inventory_registry import InventoryRegistry
-from .sessions import Session, SessionRegistry, new_player_id
+from .services.inventory_service import InventoryService
+from .services.player_service import PlayerContext, PlayerService
+from .sessions import SessionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +57,16 @@ class GameServer:
     Flag for whether to write debug messages.
     """
 
+    _player_service: PlayerService
+    """
+    Player service responsible for id assignment and session registration.
+    """
+
+    _inventory_service: InventoryService
+    """
+    Inventory service responsible for inventory requests and updates.
+    """
+
     @classmethod
     def new(cls, debug: bool = True) -> GameServer:
         """
@@ -70,10 +82,22 @@ class GameServer:
         GameServer
             Newly created server with an empty session registry.
         """
-        return cls(
-            sessions=SessionRegistry.new(),
-            inventories=InventoryRegistry.new(),
+        sessions = SessionRegistry.new()
+        inventories = InventoryRegistry.new()
+
+        _player_service = PlayerService.new(sessions=sessions, debug=debug)
+        _inventory_service = InventoryService.new(
+            inventories=inventories,
+            _player_service=_player_service,
             debug=debug,
+        )
+
+        return cls(
+            sessions=sessions,
+            inventories=inventories,
+            debug=debug,
+            _player_service=_player_service,
+            _inventory_service=_inventory_service,
         )
 
     def _log_debug(self, msg: str, *args: Any) -> None:
@@ -176,7 +200,7 @@ class GameServer:
                 if not line:
                     break
 
-                self.sessions.touch(writer)
+                self._player_service.touch(writer)
 
                 msg = self._parse(line)
                 if msg is None:
@@ -190,20 +214,21 @@ class GameServer:
                     continue
 
                 if msg_type == "request_inventory":
-                    await self._handle_request_inventory(writer, peer=peer)
+                    await self._inventory_service.handle_request_inventory(
+                        writer,
+                        peer=peer,
+                        send=self._send,
+                    )
                     continue
 
                 self._log_warning("Unknown message from %s: %s", peer, msg_type)
-                await self._send(
-                    writer,
-                    {"t": "error", "reason": "unknown_message"},
-                )
+                await self._send(writer, {"t": "error", "reason": "unknown_message"})
         except ConnectionResetError:
             self._log_info("Client reset connection: %s", peer)
         except Exception:
             self._log_exception("Unhandled error while serving client: %s", peer)
         finally:
-            removed = self.sessions.remove_by_writer(writer)
+            removed = self._player_service.remove_by_writer(writer)
             active = self.sessions.count()
 
             if removed is not None:
@@ -267,51 +292,13 @@ class GameServer:
         -------
         None
         """
-        existing_pid = self.sessions.by_writer.get(writer)
-        if existing_pid is not None:
-            self._log_debug(
-                "Re-sent player_id=%d to %s (active=%d)",
-                existing_pid,
-                peer,
-                self.sessions.count(),
-            )
-            await self._send(
-                writer,
-                {"t": "assign_id", "player_id": existing_pid},
-            )
-            inv = self.inventories.get_or_create(existing_pid)
-            await self._send(
-                writer,
-                {"t": "inventory", "player_id": existing_pid, "items": inv.to_wire()},
-            )
-            return
+        ctx = PlayerContext(writer=writer, peer=peer, now_s=time.time())
+        player_id = await self._player_service.handle_request_id(ctx, send=self._send)
 
-        now = time.time()
-        player_id = new_player_id()
-
-        session = Session(
+        await self._inventory_service.send_inventory(
+            writer,
             player_id=player_id,
-            writer=writer,
-            connected_at_s=now,
-            last_seen_s=now,
-        )
-
-        self.sessions.add(session)
-
-        self._log_info(
-            "Assigned player_id=%d to %s (active=%d)",
-            player_id,
-            peer,
-            self.sessions.count(),
-        )
-        await self._send(
-            writer,
-            {"t": "assign_id", "player_id": player_id},
-        )
-        inv = self.inventories.get_or_create(player_id)
-        await self._send(
-            writer,
-            {"t": "inventory", "player_id": player_id, "items": inv.to_wire()},
+            send=self._send,
         )
 
     async def _send(
@@ -335,35 +322,3 @@ class GameServer:
         """
         writer.write(_dumps(obj))
         await writer.drain()
-
-    async def _handle_request_inventory(
-        self,
-        writer: asyncio.StreamWriter,
-        *,
-        peer: Any,
-    ) -> None:
-        """
-        Handle a client request for current inventory snapshot.
-
-        Parameters
-        ----------
-        writer : asyncio.StreamWriter
-            Stream writer associated with the requesting client.
-        peer : Any
-            Peer name reported by asyncio (typically (ip, port)).
-
-        Returns
-        -------
-        None
-        """
-        player_id = self.sessions.by_writer.get(writer)
-        if player_id is None:
-            self._log_debug("Inventory requested before id assignment: %s", peer)
-            await self._send(writer, {"t": "error", "reason": "no_player_id"})
-            return
-
-        inv = self.inventories.get_or_create(player_id)
-        await self._send(
-            writer,
-            {"t": "inventory", "player_id": player_id, "items": inv.to_wire()},
-        )
