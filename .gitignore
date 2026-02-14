@@ -16,3 +16,6 @@ __pycache__/
 
 # OS junk
 .DS_Store
+
+# Server storage
+server/data/
