@@ -22,7 +22,9 @@ async def main() -> None:
     setup_logging()
     logger = logging.getLogger(__name__)
 
-    server = GameServer.new(server_cfg.debug)
+    server = GameServer.new(
+        debug=server_cfg.debug,
+    )
     tcp = await asyncio.start_server(
         server.handle_client, host=server_cfg.host, port=server_cfg.port
     )

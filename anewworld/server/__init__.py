@@ -14,7 +14,10 @@ from typing import Any
 from .inventory_registry import InventoryRegistry
 from .services.inventory_service import InventoryService
 from .services.player_service import PlayerContext, PlayerService
+from .services.world_service import WorldService
 from .sessions import SessionRegistry
+from .world_edits_registry import WorldEditsRegistry
+from .world_edits_store import WorldEditsStore
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +70,20 @@ class GameServer:
     Inventory service responsible for inventory requests and updates.
     """
 
+    _world_service: WorldService
+    """
+    World service responsible for chunk subscriptions and world edit snapshots.
+    """
+
     @classmethod
-    def new(cls, debug: bool = True) -> GameServer:
+    def new(
+        cls,
+        *,
+        debug: bool = True,
+        chunk_size: int = 64,
+        world_db_path: str = "server/data/world_edits.sqlite3",
+        max_cached_chunks: int = 2048,
+    ) -> GameServer:
         """
         Construct a new game server instance.
 
@@ -76,18 +91,39 @@ class GameServer:
         ----------
         debug : bool
             Flag for whether to write debug messages.
+        chunk_size : int
+            Chunk width and height in tiles.
+        world_db_path : str
+            Path to sqlite database file for world edits.
+        max_cached_chunks : int
+            Maximum number of cached chunks to keep in memory.
 
         Returns
         -------
         GameServer
-            Newly created server with an empty session registry.
+            Newly created server with service dependencies initialized.
         """
         sessions = SessionRegistry.new()
         inventories = InventoryRegistry.new()
 
         _player_service = PlayerService.new(sessions=sessions, debug=debug)
+
         _inventory_service = InventoryService.new(
             inventories=inventories,
+            _player_service=_player_service,
+            debug=debug,
+        )
+
+        store = WorldEditsStore.new(path=world_db_path)
+        edits = WorldEditsRegistry.new(
+            store=store,
+            chunk_size=chunk_size,
+            max_cached_chunks=max_cached_chunks,
+        )
+
+        _world_service = WorldService.new(
+            edits=edits,
+            sessions=sessions,
             _player_service=_player_service,
             debug=debug,
         )
@@ -98,6 +134,7 @@ class GameServer:
             debug=debug,
             _player_service=_player_service,
             _inventory_service=_inventory_service,
+            _world_service=_world_service,
         )
 
     def _log_debug(self, msg: str, *args: Any) -> None:
@@ -209,6 +246,7 @@ class GameServer:
                     continue
 
                 msg_type = msg.get("t")
+
                 if msg_type == "request_id":
                     await self._handle_request_id(writer, peer=peer)
                     continue
@@ -216,6 +254,33 @@ class GameServer:
                 if msg_type == "request_inventory":
                     await self._inventory_service.handle_request_inventory(
                         writer,
+                        peer=peer,
+                        send=self._send,
+                    )
+                    continue
+
+                if msg_type == "sub_chunk":
+                    await self._world_service.handle_sub_chunk(
+                        writer,
+                        msg,
+                        peer=peer,
+                        send=self._send,
+                    )
+                    continue
+
+                if msg_type == "unsub_chunk":
+                    await self._world_service.handle_unsub_chunk(
+                        writer,
+                        msg,
+                        peer=peer,
+                        send=self._send,
+                    )
+                    continue
+
+                if msg_type == "request_chunk_edits":
+                    await self._world_service.handle_request_chunk_edits(
+                        writer,
+                        msg,
                         peer=peer,
                         send=self._send,
                     )
@@ -232,6 +297,7 @@ class GameServer:
             active = self.sessions.count()
 
             if removed is not None:
+                self._world_service.on_disconnect(player_id=removed.player_id)
                 self._log_info(
                     "Client disconnected: %s player_id=%d active=%d",
                     peer,
