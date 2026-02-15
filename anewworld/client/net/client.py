@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from anewworld.client.net.client_state import ClientState
+from anewworld.client.net.world_edits_state import WorldEditsState
 from anewworld.shared.inventory import Inventory
 
 
@@ -61,6 +62,11 @@ class ServerConnection:
     Assigned player id for this connection.
     """
 
+    _subscribed_chunks: set[tuple[int, int]] = field(default_factory=set)
+    """
+    Currently subscribed chunks.
+    """
+
     @classmethod
     async def connect(
         cls,
@@ -93,7 +99,6 @@ class ServerConnection:
         writer.write(_dumps({"t": "request_id"}))
         await writer.drain()
 
-        # --- Expect assign_id ---
         line = await reader.readline()
         if not line:
             writer.close()
@@ -108,7 +113,6 @@ class ServerConnection:
 
         player_id = int(msg["player_id"])
 
-        # --- Expect inventory snapshot ---
         line = await reader.readline()
         if not line:
             writer.close()
@@ -129,11 +133,13 @@ class ServerConnection:
             reader=reader,
             writer=writer,
             player_id=player_id,
+            _subscribed_chunks=set(),
         )
 
         state = ClientState(
             player_id=player_id,
             inventory=inventory,
+            world_edits=WorldEditsState(),
         )
 
         return conn, state
@@ -192,6 +198,142 @@ class ServerConnection:
         self.writer.close()
         await self.writer.wait_closed()
 
+    async def tick(
+        self,
+        *,
+        state: ClientState,
+        camera_x_px: float,
+        camera_y_px: float,
+        screen_w_px: int,
+        screen_h_px: int,
+        chunk_size: int,
+        tile_size: int,
+        padding_chunks: int,
+    ) -> set[tuple[int, int]]:
+        """
+        Update subscriptions for the current view and drain inbound messages.
+
+        Parameters
+        ----------
+        state : ClientState
+            Client state to update.
+        camera_x_px : float
+            Camera world x coordinate in pixels.
+        camera_y_px : float
+            Camera world y coordinate in pixels.
+        screen_w_px : int
+            Screen width in pixels.
+        screen_h_px : int
+            Screen height in pixels.
+        chunk_size : int
+            Chunk width/height in tiles.
+        tile_size : int
+            Tile size in pixels.
+        padding_chunks : int
+            Extra chunks to subscribe beyond viewport.
+
+        Returns
+        -------
+        set[tuple[int, int]]
+            Set of (cx, cy) chunks whose edits changed.
+        """
+        chunk_px = chunk_size * tile_size
+        wanted = self._visible_chunks(
+            camera_x_px=camera_x_px,
+            camera_y_px=camera_y_px,
+            screen_w_px=screen_w_px,
+            screen_h_px=screen_h_px,
+            chunk_px=chunk_px,
+            padding_chunks=padding_chunks,
+        )
+
+        await self._sync_subscriptions(state=state, wanted=wanted)
+        return await self.poll(state=state)
+
+    async def _sync_subscriptions(
+        self,
+        *,
+        state: ClientState,
+        wanted: set[tuple[int, int]],
+    ) -> None:
+        """
+        Subscribe and unsubscribe chunks to match a target set.
+
+        Parameters
+        ----------
+        state : ClientState
+            Client state to update when chunks are dropped.
+        wanted : set[tuple[int, int]]
+            Desired set of subscribed chunks.
+
+        Returns
+        -------
+        None
+        """
+        to_sub = wanted - self._subscribed_chunks
+        to_unsub = self._subscribed_chunks - wanted
+
+        for cx, cy in to_sub:
+            await self.send({"t": "sub_chunk", "cx": cx, "cy": cy})
+
+        for cx, cy in to_unsub:
+            await self.send({"t": "unsub_chunk", "cx": cx, "cy": cy})
+            state.world_edits.clear_chunk(cx=cx, cy=cy)
+
+        self._subscribed_chunks = wanted
+
+    @staticmethod
+    def _visible_chunks(
+        *,
+        camera_x_px: float,
+        camera_y_px: float,
+        screen_w_px: int,
+        screen_h_px: int,
+        chunk_px: int,
+        padding_chunks: int,
+    ) -> set[tuple[int, int]]:
+        """
+        Compute the chunk coordinates covering the current view.
+
+        Parameters
+        ----------
+        camera_x_px : float
+            Camera world x coordinate in pixels.
+        camera_y_px : float
+            Camera world y coordinate in pixels.
+        screen_w_px : int
+            Screen width in pixels.
+        screen_h_px : int
+            Screen height in pixels.
+        chunk_px : int
+            Chunk size in pixels.
+        padding_chunks : int
+            Extra chunks to include beyond viewport.
+
+        Returns
+        -------
+        set[tuple[int, int]]
+            Set of chunk (cx, cy) keys in view.
+        """
+        cam_x = int(round(camera_x_px))
+        cam_y = int(round(camera_y_px))
+
+        left = cam_x
+        top = cam_y
+        right = cam_x + screen_w_px
+        bottom = cam_y + screen_h_px
+
+        cx0 = (left // chunk_px) - padding_chunks
+        cy0 = (top // chunk_px) - padding_chunks
+        cx1 = ((right - 1) // chunk_px) + padding_chunks
+        cy1 = ((bottom - 1) // chunk_px) + padding_chunks
+
+        out: set[tuple[int, int]] = set()
+        for cy in range(cy0, cy1 + 1):
+            for cx in range(cx0, cx1 + 1):
+                out.add((cx, cy))
+        return out
+
     @staticmethod
     def _parse(line: bytes) -> dict[str, Any] | None:
         """
@@ -216,3 +358,54 @@ class ServerConnection:
             return None
 
         return obj
+
+    async def poll(self, *, state: ClientState) -> set[tuple[int, int]]:
+        """
+        Drain any available server messages and update client state.
+
+        Parameters
+        ----------
+        state : ClientState
+            Client state to update.
+
+        Returns
+        -------
+        set[tuple[int, int]]
+            Set of (cx, cy) chunks whose edits changed.
+        """
+        changed_chunks: set[tuple[int, int]] = set()
+
+        while True:
+            try:
+                msg = await asyncio.wait_for(self.recv(), timeout=0.0)
+            except TimeoutError:
+                break
+
+            t = msg.get("t")
+
+            if t == "inventory":
+                items = msg.get("items")
+                if isinstance(items, dict):
+                    state.inventory = Inventory.from_wire(items)
+                continue
+
+            if t == "chunk_edits":
+                cx = msg.get("cx")
+                cy = msg.get("cy")
+                edits = msg.get("edits")
+                if (
+                    isinstance(cx, int)
+                    and isinstance(cy, int)
+                    and isinstance(edits, list)
+                ):
+                    state.world_edits.apply_chunk_snapshot(cx=cx, cy=cy, edits=edits)
+                    changed_chunks.add((cx, cy))
+                continue
+
+            if t == "edit_applied":
+                key = state.world_edits.apply_edit(msg)
+                if key is not None:
+                    changed_chunks.add(key)
+                continue
+
+        return changed_chunks

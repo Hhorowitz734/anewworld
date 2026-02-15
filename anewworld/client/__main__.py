@@ -21,7 +21,7 @@ from anewworld.shared.terrain_generator import TerrainGenerator
 from anewworld.shared.world_map import WorldMap
 
 
-def main() -> None:
+async def main() -> None:
     """
     Start anewworld client.
     """
@@ -36,11 +36,9 @@ def main() -> None:
     state: ClientState | None = None
 
     if not client_cfg.singleplayer:
-        conn, state = asyncio.run(
-            ServerConnection.connect(
-                host="127.0.0.1",
-                port=7777,
-            )
+        conn, state = await ServerConnection.connect(
+            host="127.0.0.1",
+            port=7777,
         )
         if dev_cfg.debug:
             print(f"Connected as {conn.player_id}")
@@ -89,17 +87,29 @@ def main() -> None:
 
                 controls.handle_event(event)
 
+            if conn is not None and state is not None:
+                await conn.tick(
+                    state=state,
+                    camera_x_px=camera.x_px,
+                    camera_y_px=camera.y_px,
+                    screen_w_px=window_cfg.screen_width,
+                    screen_h_px=window_cfg.screen_height,
+                    chunk_size=world_cfg.chunk_size,
+                    tile_size=window_cfg.tile_size,
+                    padding_chunks=3,
+                )
+
             screen.fill((0, 0, 0))
             renderer.draw(screen=screen, world_map=world_map, camera=camera)
             pygame.display.flip()
 
     finally:
         if conn is not None:
-            asyncio.run(conn.close())
+            await conn.close()
 
         pygame.quit()
         sys.exit()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
