@@ -14,10 +14,7 @@ from typing import Any
 from .inventory_registry import InventoryRegistry
 from .services.inventory_service import InventoryService
 from .services.player_service import PlayerContext, PlayerService
-from .services.world_service import WorldService
 from .sessions import SessionRegistry
-from .world_edits_registry import WorldEditsRegistry
-from .world_edits_store import WorldEditsStore
 
 logger = logging.getLogger(__name__)
 
@@ -70,11 +67,6 @@ class GameServer:
     Inventory service responsible for inventory requests and updates.
     """
 
-    _world_service: WorldService
-    """
-    World service responsible for chunk subscriptions and world edit snapshots.
-    """
-
     @classmethod
     def new(
         cls,
@@ -114,27 +106,12 @@ class GameServer:
             debug=debug,
         )
 
-        store = WorldEditsStore.new(path=world_db_path)
-        edits = WorldEditsRegistry.new(
-            store=store,
-            chunk_size=chunk_size,
-            max_cached_chunks=max_cached_chunks,
-        )
-
-        _world_service = WorldService.new(
-            edits=edits,
-            sessions=sessions,
-            _player_service=_player_service,
-            debug=debug,
-        )
-
         return cls(
             sessions=sessions,
             inventories=inventories,
             debug=debug,
             _player_service=_player_service,
             _inventory_service=_inventory_service,
-            _world_service=_world_service,
         )
 
     def _log_debug(self, msg: str, *args: Any) -> None:
@@ -259,33 +236,6 @@ class GameServer:
                     )
                     continue
 
-                if msg_type == "sub_chunk":
-                    await self._world_service.handle_sub_chunk(
-                        writer,
-                        msg,
-                        peer=peer,
-                        send=self._send,
-                    )
-                    continue
-
-                if msg_type == "unsub_chunk":
-                    await self._world_service.handle_unsub_chunk(
-                        writer,
-                        msg,
-                        peer=peer,
-                        send=self._send,
-                    )
-                    continue
-
-                if msg_type == "request_chunk_edits":
-                    await self._world_service.handle_request_chunk_edits(
-                        writer,
-                        msg,
-                        peer=peer,
-                        send=self._send,
-                    )
-                    continue
-
                 self._log_warning("Unknown message from %s: %s", peer, msg_type)
                 await self._send(writer, {"t": "error", "reason": "unknown_message"})
         except ConnectionResetError:
@@ -297,7 +247,6 @@ class GameServer:
             active = self.sessions.count()
 
             if removed is not None:
-                self._world_service.on_disconnect(player_id=removed.player_id)
                 self._log_info(
                     "Client disconnected: %s player_id=%d active=%d",
                     peer,
